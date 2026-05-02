@@ -1,3 +1,4 @@
+import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import { BookOpen, Lightbulb, Loader2, PartyPopper, Sparkles, Target } from "lucide-react";

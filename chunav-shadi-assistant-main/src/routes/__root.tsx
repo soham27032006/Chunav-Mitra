@@ -1,3 +1,4 @@
+import * as React from "react";
 import { Outlet, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
