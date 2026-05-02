@@ -76,15 +76,17 @@ export interface TranslateResponse {
 /**
  * API Configuration
  * Uses VITE_API_BASE_URL from environment variables
- * Falls back to localhost for development
+ * Falls back to production Render URL as default
  */
-const PRODUCTION_URL = "https://chunav-mitra-av4k.onrender.com";
-const DEVELOPMENT_URL = "http://localhost:8000";
-
-// Get BASE_URL from environment or use production as default
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://chunav-mitra-av4k.onrender.com";
 
+/** Default timeout in ms — high to survive Render free-tier cold starts. */
+const DEFAULT_TIMEOUT_MS = 60_000;
+
 const pendingRequests = new Map<string, Promise<unknown>>();
+
+/** Track whether we've already started warming up the backend. */
+let _warmUpStarted = false;
 
 function makeRequestKey(path: string, init?: RequestInit): string {
   return JSON.stringify({
@@ -97,7 +99,7 @@ function makeRequestKey(path: string, init?: RequestInit): string {
 async function fetchWithTimeout(
   url: string,
   options: RequestInit,
-  timeout = 10000,
+  timeout = DEFAULT_TIMEOUT_MS,
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeout);
@@ -125,6 +127,8 @@ async function fetchWithRetry(
       if (attempt === retries) {
         break;
       }
+      // Exponential backoff: 1s, 2s between retries
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
     }
   }
   throw lastError instanceof Error ? lastError : new Error("Network request failed");
@@ -211,4 +215,16 @@ export const api = {
     }),
 
   stats: () => jsonFetch<StatsResponse>("/api/stats"),
+
+  /**
+   * Silently ping /health to wake the backend from Render cold start.
+   * Safe to call multiple times — only the first call actually fires.
+   */
+  warmUp: () => {
+    if (_warmUpStarted) return;
+    _warmUpStarted = true;
+    fetch(`${BASE_URL}/health`, { method: "GET", mode: "cors" }).catch(() => {
+      /* swallow — backend may be waking up */
+    });
+  },
 };

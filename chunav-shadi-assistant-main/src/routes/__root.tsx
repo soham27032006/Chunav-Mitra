@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import appCss from "../styles.css?url";
 import { Layout } from "@/components/Layout";
 import { Toaster } from "@/components/ui/sonner";
+import { api } from "@/lib/api";
 
 export type Lang = "hi" | "en";
 
@@ -246,6 +247,8 @@ function RootShell({ children }: { children: React.ReactNode }) {
     if (saved === "hi" || saved === "en") {
       setLangState(saved);
     }
+    // Pre-wake the backend from Render cold start
+    api.warmUp();
   }, []);
 
   useEffect(() => {
