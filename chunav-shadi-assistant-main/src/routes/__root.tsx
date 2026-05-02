@@ -129,7 +129,7 @@ export const translations = {
     },
   },
   hero: {
-    title: { en: "Chunav Mitra", hi: "चुनाव मित्र" },
+    title: { en: "Chunav Mitra", hi: "चुनाव मित्रा" },
     subtitle: {
       en: "India's elections explained through the magic of a desi shaadi. Voter list ka guest list, booth ka mandap, vote ka shagun.",
       hi: "भारत के चुनाव एक देसी शादी की मिसाल से समझिए। मतदाता सूची यानी गेस्ट लिस्ट, बूथ यानी मंडप, और वोट यानी शगुन।",
