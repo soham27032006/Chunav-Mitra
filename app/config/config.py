@@ -10,7 +10,8 @@ class Settings(BaseSettings):
     firebase_service_account_path: str = "./firebase-service-account.json"
     app_env: str = "development"
     app_port: int = 8000
-    allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,http://localhost:4173,http://127.0.0.1:4173,http://localhost:8080,http://127.0.0.1:8080"
+    allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,http://localhost:4173,http://127.0.0.1:4173,http://localhost:8080,http://127.0.0.1:8080,https://chunav-mitra-frontend.onrender.com"
+    allowed_origin_regex: str = r"^https://.*\.onrender\.com$"
 
     @property
     def origins_list(self) -> list[str]:
