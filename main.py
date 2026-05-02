@@ -41,25 +41,31 @@ _KEEP_ALIVE_INTERVAL: int = 600  # 10 minutes
 
 
 async def _keep_alive_ping() -> None:
-    """Periodically ping our own /health endpoint to prevent Render cold starts.
+    """Periodically ping backend + frontend to prevent Render cold starts.
 
-    Runs as a background task for the lifetime of the application. Failures
-    are silently logged — the main server is unaffected.
+    Pings both RENDER_EXTERNAL_URL (self) and FRONTEND_URL so that
+    neither service sleeps on the Render free tier.
     """
     render_url = os.getenv("RENDER_EXTERNAL_URL", "")
-    if not render_url:
-        logger.info("RENDER_EXTERNAL_URL not set — keep-alive ping disabled.")
+    frontend_url = os.getenv("FRONTEND_URL", "")
+    urls: list[str] = []
+    if render_url:
+        urls.append(f"{render_url}/health")
+    if frontend_url:
+        urls.append(frontend_url.rstrip("/"))
+    if not urls:
+        logger.info("No keep-alive URLs configured — ping disabled.")
         return
-    health_url = f"{render_url}/health"
-    logger.info("Keep-alive ping enabled → %s every %ds", health_url, _KEEP_ALIVE_INTERVAL)
+    logger.info("Keep-alive ping enabled → %s every %ds", urls, _KEEP_ALIVE_INTERVAL)
     async with httpx.AsyncClient(timeout=30) as client:
         while True:
             await asyncio.sleep(_KEEP_ALIVE_INTERVAL)
-            try:
-                resp = await client.get(health_url)
-                logger.debug("Keep-alive ping → %s %d", health_url, resp.status_code)
-            except Exception as exc:
-                logger.warning("Keep-alive ping failed: %s", exc)
+            for url in urls:
+                try:
+                    resp = await client.get(url)
+                    logger.debug("Keep-alive ping → %s %d", url, resp.status_code)
+                except Exception as exc:
+                    logger.warning("Keep-alive ping failed for %s: %s", url, exc)
 
 
 @asynccontextmanager
