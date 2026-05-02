@@ -76,6 +76,8 @@ bin/
 !/schemas.py
 !/timeline.py
 !/voter.py
+!/render.yaml
+!/runtime.txt
 !/app/
 !/tests/
 !/chunav-shadi-assistant-main/

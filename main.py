@@ -7,13 +7,17 @@ Version: 2.0.0
 
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 import time
+from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query, Request
+import httpx
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -32,12 +36,61 @@ from app.utils.validators import validate_language, validate_query
 settings = get_settings()
 logger = get_logger(__name__)
 
+# ── Keep-alive self-ping interval (seconds) ──────────────────────────────────
+_KEEP_ALIVE_INTERVAL: int = 600  # 10 minutes
+
+
+async def _keep_alive_ping() -> None:
+    """Periodically ping our own /health endpoint to prevent Render cold starts.
+
+    Runs as a background task for the lifetime of the application. Failures
+    are silently logged — the main server is unaffected.
+    """
+    render_url = os.getenv("RENDER_EXTERNAL_URL", "")
+    if not render_url:
+        logger.info("RENDER_EXTERNAL_URL not set — keep-alive ping disabled.")
+        return
+    health_url = f"{render_url}/health"
+    logger.info("Keep-alive ping enabled → %s every %ds", health_url, _KEEP_ALIVE_INTERVAL)
+    async with httpx.AsyncClient(timeout=30) as client:
+        while True:
+            await asyncio.sleep(_KEEP_ALIVE_INTERVAL)
+            try:
+                resp = await client.get(health_url)
+                logger.debug("Keep-alive ping → %s %d", health_url, resp.status_code)
+            except Exception as exc:
+                logger.warning("Keep-alive ping failed: %s", exc)
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Application lifespan: startup and shutdown logic."""
+    logger.info("Starting Chunav Mitra API v2.0.0")
+    current_settings = get_settings()
+    if not current_settings.gemini_api_key:
+        logger.warning("GEMINI_API_KEY not configured!")
+    logger.info("Environment: %s", current_settings.app_env)
+    logger.info("CORS origins: %s", current_settings.origins_list)
+    logger.info("Chunav Mitra ready! Jai Hind! 🇮🇳")
+    # Start keep-alive background task
+    keep_alive_task = asyncio.create_task(_keep_alive_ping())
+    yield
+    # Shutdown: cancel background task
+    keep_alive_task.cancel()
+    try:
+        await keep_alive_task
+    except asyncio.CancelledError:
+        pass
+    logger.info("Chunav Mitra shutting down. Alvida! 🙏")
+
+
 app = FastAPI(
     title="Chunav Mitra API",
     description="Election Assistant with Desi Shaadi Analogies for Google Prompt Wars 2026.",
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -58,21 +111,7 @@ app.add_middleware(RateLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 
-@app.on_event("startup")
-async def startup_event() -> None:
-    """Validate configuration on application startup.
 
-    Logs the application version, environment, CORS origins, and a
-    startup confirmation message. Issues a warning if the Gemini API
-    key is missing.
-    """
-    logger.info("Starting Chunav Mitra API v2.0.0")
-    current_settings = get_settings()
-    if not current_settings.gemini_api_key:
-        logger.warning("GEMINI_API_KEY not configured!")
-    logger.info(f"Environment: {current_settings.app_env}")
-    logger.info(f"CORS origins: {current_settings.origins_list}")
-    logger.info("Chunav Mitra ready! Jai Hind! 🇮🇳")
 
 
 @app.middleware("http")
@@ -103,14 +142,18 @@ app.include_router(transcribe.router)
 app.include_router(translate.router)
 
 
-@app.get("/")
-async def root() -> dict[str, object]:
+@app.api_route("/", methods=["GET", "HEAD"])
+async def root(request: Request) -> Response:
     """Return API metadata and important endpoints.
 
+    Supports both GET (full body) and HEAD (headers only) methods so
+    that uptime monitors and health-check probes receive a 200 response
+    regardless of which HTTP method they use.
+
     Returns:
-        Dictionary with API name, tagline, and endpoint listing.
+        JSON response with API name, tagline, and endpoint listing.
     """
-    return {
+    body = {
         "name": "Chunav Mitra",
         "tagline": "Aap desh ki sabse badi shaadi ke sabse zaroori guest hain!",
         "endpoints": {
@@ -126,16 +169,25 @@ async def root() -> dict[str, object]:
         },
         "docs": "/docs",
     }
+    if request.method == "HEAD":
+        return Response(status_code=200, media_type="application/json")
+    return JSONResponse(content=body)
 
 
-@app.get("/health")
-async def health() -> dict[str, str]:
+@app.api_route("/health", methods=["GET", "HEAD"])
+async def health(request: Request) -> Response:
     """Return a lightweight healthcheck payload.
 
+    Supports both GET and HEAD methods. HEAD returns headers only,
+    which is the standard behaviour expected by uptime monitors.
+
     Returns:
-        Dictionary with status and current environment.
+        JSON response with status and current environment.
     """
-    return {"status": "healthy", "env": settings.app_env}
+    body = {"status": "healthy", "env": settings.app_env}
+    if request.method == "HEAD":
+        return Response(status_code=200, media_type="application/json")
+    return JSONResponse(content=body)
 
 
 @app.get("/api/ask/stream")
