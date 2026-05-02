@@ -18,3 +18,5 @@ services:
         sync: false
       - key: FIREBASE_PROJECT_ID
         sync: false
+      - key: FRONTEND_URL
+        value: "https://chunav-mitra-1.onrender.com"
