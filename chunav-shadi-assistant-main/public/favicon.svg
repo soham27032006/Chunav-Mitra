@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Chunav Mitra">
+  <defs>
+    <linearGradient id="cm-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffd76a" />
+      <stop offset="55%" stop-color="#ff9f43" />
+      <stop offset="100%" stop-color="#ff6b35" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#140b2e" />
+  <path
+    d="M32 8c1.7 0 3.1 1.2 3.5 2.8l2.8 11c.3 1.1 1.1 1.9 2.2 2.2l11 2.8c1.6.4 2.8 1.8 2.8 3.5s-1.2 3.1-2.8 3.5l-11 2.8c-1.1.3-1.9 1.1-2.2 2.2l-2.8 11c-.4 1.6-1.8 2.8-3.5 2.8s-3.1-1.2-3.5-2.8l-2.8-11c-.3-1.1-1.1-1.9-2.2-2.2l-11-2.8C11.2 35.1 10 33.7 10 32s1.2-3.1 2.8-3.5l11-2.8c1.1-.3 1.9-1.1 2.2-2.2l2.8-11C28.9 9.2 30.3 8 32 8Z"
+    fill="url(#cm-grad)"
+  />
+  <path d="M46 10v10M51 15H41" stroke="#ffd76a" stroke-width="4" stroke-linecap="round" />
+</svg>
