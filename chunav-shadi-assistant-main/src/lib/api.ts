@@ -73,9 +73,16 @@ export interface TranslateResponse {
   target_lang: Lang;
 }
 
-const BASE_URL =
-  (import.meta as unknown as { env: Record<string, string | undefined> }).env
-    ?.VITE_API_BASE_URL || "http://localhost:8000";
+/**
+ * API Configuration
+ * Uses VITE_API_BASE_URL from environment variables
+ * Falls back to localhost for development
+ */
+const PRODUCTION_URL = "https://chunav-mitra-av4k.onrender.com";
+const DEVELOPMENT_URL = "http://localhost:8000";
+
+// Get BASE_URL from environment or use production as default
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://chunav-mitra-av4k.onrender.com";
 
 const pendingRequests = new Map<string, Promise<unknown>>();
 
