@@ -165,9 +165,9 @@ function Home() {
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1, duration: 0.8 }}
-                className={`${lang === "hi" ? "font-hindi pt-2 leading-[1.24] md:leading-[1.18]" : "font-display leading-[1.05]"} text-5xl font-bold md:text-7xl lg:text-8xl`}
+                className={`${lang === "hi" ? "overflow-visible font-hindi pt-4 leading-[1.32] md:pt-5 md:leading-[1.22]" : "font-display leading-[1.05]"} text-5xl font-bold md:text-7xl lg:text-8xl`}
               >
-                <span className="block text-gradient-gold animate-shimmer-text">
+                <span className={`${lang === "hi" ? "inline-block overflow-visible px-1 pt-2" : "block"} text-gradient-gold animate-shimmer-text`}>
                   {t("hero.title", lang)}
                 </span>
               </motion.h1>
