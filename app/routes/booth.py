@@ -1,6 +1,8 @@
 """
 Module: booth.py
-Description: Polling booth discovery routes for Chunav Mitra.
+Purpose: Polling booth discovery routes for Chunav Mitra.
+         Accepts a pincode or GPS coordinates, delegates to the maps service,
+         and wraps results in a shaadi-analogy message about finding your mandap.
 Author: Chunav Mitra Team
 Version: 2.0.0
 """
@@ -17,10 +19,33 @@ from app.utils.validators import validate_pincode
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["booth"])
 
+__all__ = ["router", "find_booth"]
+
 
 @router.post("/find-booth", response_model=BoothResponse)
 async def find_booth(req: BoothRequest) -> BoothResponse:
-    """Find a likely polling booth from pincode or GPS coordinates."""
+    """Locate the nearest polling booth from a pincode or GPS coordinates.
+
+    Accepts either a six-digit Indian pincode or a (lat, lng) coordinate
+    pair. Delegates to the maps service which queries OpenStreetMap for
+    government schools and official polling station nodes.
+
+    Args:
+        req: ``BoothRequest`` with ``pincode`` or ``lat``/``lng`` fields.
+
+    Returns:
+        ``BoothResponse`` with booth name, address, distance, maps link,
+        and a shaadi-analogy message about finding your mandap.
+
+    Raises:
+        HTTPException: HTTP 400 when neither pincode nor GPS is supplied.
+        HTTPException: HTTP 400 when the pincode format is invalid.
+        HTTPException: HTTP 500 on unexpected server errors.
+
+    Example:
+        Request: ``{"pincode": "110001"}``
+        Response: ``{"booth_name": "Polling Booth", "distance": "1.2 km", ...}``
+    """
     try:
         if req.pincode:
             pincode = validate_pincode(req.pincode)

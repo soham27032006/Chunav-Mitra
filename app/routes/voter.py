@@ -1,6 +1,8 @@
 """
 Module: voter.py
-Description: Voter list lookup routes for Chunav Mitra.
+Purpose: Voter electoral-roll lookup routes for Chunav Mitra.
+         Validates name and state, attempts a lightweight ECI portal probe,
+         and returns a deterministic voter ID with a shaadi-analogy message.
 Author: Chunav Mitra Team
 Version: 2.0.0
 """
@@ -20,6 +22,8 @@ from app.utils.validators import validate_name, validate_state
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["voter"])
+
+__all__ = ["router", "check_voter", "generate_voter_id", "get_state_code"]
 
 STATE_CODES = {
     "andhra pradesh": "AP",
@@ -64,19 +68,60 @@ DISTRICT_CODES = [f"{index:02d}" for index in range(1, 21)]
 
 
 def get_state_code(state_name: str) -> str:
-    """Map a state name to a short voter-id state code."""
+    """Map a full state name to its two-letter voter-ID state code.
+
+    Args:
+        state_name: Full state or UT name (case-insensitive).
+
+    Returns:
+        Two-letter state abbreviation used in voter IDs, or ``"UP"``
+        as a safe default when the name is not found.
+
+    Example:
+        >>> get_state_code("Delhi")
+        'DL'
+    """
     return STATE_CODES.get(state_name.lower().strip(), "UP")
 
 
 def generate_voter_id(state_code: str) -> str:
-    """Generate a realistic-looking voter id."""
+    """Generate a realistic-looking example voter ID string.
+
+    The generated ID is **not** a real voter ID; it is used only for
+    demonstration purposes in the demo voter lookup response.
+
+    Args:
+        state_code: Two-letter state abbreviation (e.g. ``"DL"`` for Delhi).
+
+    Returns:
+        A plausible voter ID string in the format ``<STATE><DISTRICT><6-DIGITS>``.
+
+    Example:
+        >>> vid = generate_voter_id("DL")
+        >>> vid.startswith("DL")
+        True
+    """
     district = random.choice(DISTRICT_CODES)
     random_digits = "".join(random.choices(string.digits, k=6))
     return f"{state_code}{district}{random_digits}"
 
 
 def generate_shaadi_message(name: str, state: str, found: bool) -> str:
-    """Create a friendly voter-lookup message using a wedding analogy."""
+    """Create a friendly voter-lookup result message with a wedding analogy.
+
+    Args:
+        name: Validated voter name.
+        state: Validated state or UT name.
+        found: Whether the voter appears to be on the electoral roll.
+
+    Returns:
+        A Hinglish message string with a desi shaadi analogy.
+
+    Example:
+        >>> msg = generate_shaadi_message("Priya", "Delhi", True)
+        >>> "guest list" in msg
+        True
+    """
     if found:
         return (
             f"Congratulations, {name}! Aapka naam {state} ki guest list mein mil gaya. "
@@ -90,11 +135,35 @@ def generate_shaadi_message(name: str, state: str, found: bool) -> str:
     )
 
 
-async def search_eci_voter(name: str, state_code: str, dob: str | None = None) -> dict[str, str | bool] | None:
-    """Try a lightweight ECI lookup and infer whether a record exists."""
+async def search_eci_voter(
+    name: str,
+    state_code: str,
+    dob: str | None = None,
+) -> dict[str, str | bool] | None:
+    """Probe the ECI voter search portal and infer record existence.
+
+    Makes a lightweight HTTP GET to the ECI electoral search page and
+    uses keyword heuristics to determine whether a matching voter record
+    is likely to exist. Returns ``None`` on any network error so that
+    callers can apply their own fallback logic.
+
+    Args:
+        name: Validated full voter name.
+        state_code: Two-letter state code for the ECI query.
+        dob: Optional date of birth in DD/MM/YYYY format.
+
+    Returns:
+        Dictionary with ``found`` (bool) and ``voter_id`` (str or None),
+        or ``None`` when the ECI portal cannot be reached.
+
+    Example:
+        >>> result = await search_eci_voter("Rahul", "DL")
+        >>> result is None or "found" in result
+        True
+    """
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            params = {"nm": name, "st": state_code, "epic": ""}
+            params: dict[str, str] = {"nm": name, "st": state_code, "epic": ""}
             if dob:
                 params["dob"] = dob
             response = await client.get(
@@ -116,7 +185,26 @@ async def search_eci_voter(name: str, state_code: str, dob: str | None = None) -
 
 @router.post("/check-voter", response_model=VoterCheckResponse)
 async def check_voter(req: VoterCheckRequest) -> VoterCheckResponse:
-    """Check whether a voter appears to be on the electoral roll."""
+    """Check whether a voter appears to be on the electoral roll.
+
+    Validates the supplied name and state, probes the ECI search portal,
+    and returns a deterministic result with a shaadi-analogy message.
+    Falls back to a heuristic when the ECI portal is unreachable.
+
+    Args:
+        req: ``VoterCheckRequest`` with ``name``, ``state``, and optional ``dob``.
+
+    Returns:
+        ``VoterCheckResponse`` with ``found``, ``message``, and ``voter_id``.
+
+    Raises:
+        HTTPException: HTTP 400 when name or state validation fails.
+        HTTPException: HTTP 500 on unexpected server errors.
+
+    Example:
+        Request: ``{"name": "Priya Singh", "state": "Delhi"}``
+        Response: ``{"found": true, "message": "...", "voter_id": "DL01123456"}``
+    """
     try:
         name = validate_name(req.name)
         state = validate_state(req.state, INDIAN_STATES)

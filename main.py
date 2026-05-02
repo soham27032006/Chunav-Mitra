@@ -50,8 +50,12 @@ app.add_middleware(
 )
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "*"])
 app.add_middleware(GZipMiddleware, minimum_size=1000)
-app.add_middleware(SecurityHeadersMiddleware)
+# NOTE: Middleware is executed in reverse registration order (LIFO stack).
+# RateLimitMiddleware is added first so it runs innermost.
+# SecurityHeadersMiddleware is added last so it wraps everything and applies
+# security headers even to 429 rate-limit responses.
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 @app.on_event("startup")
