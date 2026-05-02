@@ -44,8 +44,6 @@
 
 :root {
   --radius: 1rem;
-
-  /* Brand palette */
   --saffron: oklch(0.72 0.18 45);
   --gold: oklch(0.85 0.16 88);
   --rose-gold: oklch(0.78 0.11 35);
@@ -54,8 +52,6 @@
   --cream: oklch(0.97 0.02 85);
   --navy: oklch(0.18 0.05 280);
   --royal-purple: oklch(0.32 0.14 295);
-
-  /* Dark luxury theme */
   --background: oklch(0.13 0.04 285);
   --foreground: oklch(0.97 0.02 85);
   --card: oklch(0.18 0.05 285 / 60%);
@@ -67,7 +63,7 @@
   --secondary: oklch(0.85 0.16 88);
   --secondary-foreground: oklch(0.13 0.04 285);
   --muted: oklch(0.25 0.05 285);
-  --muted-foreground: oklch(0.75 0.04 85);
+  --muted-foreground: oklch(0.78 0.04 85);
   --accent: oklch(0.32 0.14 295);
   --accent-foreground: oklch(0.97 0.02 85);
   --destructive: oklch(0.55 0.22 25);
@@ -75,20 +71,13 @@
   --border: oklch(0.85 0.16 88 / 18%);
   --input: oklch(1 0 0 / 8%);
   --ring: oklch(0.85 0.16 88);
-
-  /* Gradients */
   --gradient-mandap: linear-gradient(135deg, oklch(0.72 0.18 45) 0%, oklch(0.85 0.16 88) 50%, oklch(0.78 0.11 35) 100%);
   --gradient-night: linear-gradient(180deg, oklch(0.13 0.04 285) 0%, oklch(0.18 0.08 295) 50%, oklch(0.13 0.04 285) 100%);
   --gradient-royal: linear-gradient(135deg, oklch(0.32 0.14 295), oklch(0.35 0.15 15));
-  --gradient-glow: radial-gradient(circle at 50% 50%, oklch(0.85 0.16 88 / 40%), transparent 70%);
   --gradient-text: linear-gradient(135deg, oklch(0.85 0.16 88), oklch(0.78 0.11 35), oklch(0.72 0.18 45));
-
-  /* Shadows */
   --shadow-glow: 0 0 60px oklch(0.85 0.16 88 / 30%), 0 0 120px oklch(0.72 0.18 45 / 15%);
   --shadow-card: 0 20px 60px -20px oklch(0 0 0 / 50%), 0 0 30px oklch(0.85 0.16 88 / 10%);
   --shadow-gold: 0 8px 32px oklch(0.85 0.16 88 / 40%);
-
-  /* Transitions */
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-smooth: cubic-bezier(0.65, 0, 0.35, 1);
 }
@@ -98,7 +87,8 @@
     border-color: var(--color-border);
   }
 
-  html, body {
+  html,
+  body {
     background: var(--gradient-night);
     color: var(--color-foreground);
     min-height: 100vh;
@@ -109,14 +99,33 @@
   body {
     background-attachment: fixed;
   }
+
+  :focus-visible {
+    outline: 3px solid #ff6b35;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 }
 
 @layer utilities {
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   .text-gradient-gold {
     background: var(--gradient-text);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
+    text-shadow: 0 1px 18px rgb(0 0 0 / 0.18);
   }
 
   .bg-mandap {
@@ -149,6 +158,7 @@
     position: relative;
     overflow: hidden;
   }
+
   .gold-shimmer::before {
     content: "";
     position: absolute;
@@ -158,7 +168,10 @@
     transition: transform 0.8s var(--ease-smooth);
     pointer-events: none;
   }
-  .gold-shimmer:hover::before { transform: translateX(100%); }
+
+  .gold-shimmer:hover::before {
+    transform: translateX(100%);
+  }
 
   .rangoli-bg {
     background-image:
@@ -175,24 +188,28 @@
     0%, 100% { transform: translateY(0) rotate(0deg); }
     50% { transform: translateY(-20px) rotate(5deg); }
   }
+
   .animate-float { animation: float 6s ease-in-out infinite; }
 
   @keyframes glow-pulse {
     0%, 100% { box-shadow: 0 0 20px oklch(0.85 0.16 88 / 40%); }
     50% { box-shadow: 0 0 50px oklch(0.85 0.16 88 / 80%); }
   }
+
   .animate-glow-pulse { animation: glow-pulse 3s ease-in-out infinite; }
 
   @keyframes spin-slow {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
   }
+
   .animate-spin-slow { animation: spin-slow 30s linear infinite; }
 
   @keyframes shimmer-text {
     0% { background-position: -200% center; }
     100% { background-position: 200% center; }
   }
+
   .animate-shimmer-text {
     background-size: 200% auto;
     animation: shimmer-text 4s linear infinite;

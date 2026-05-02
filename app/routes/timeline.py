@@ -1,45 +1,90 @@
-from fastapi import APIRouter
-from app.models.schemas import TimelineResponse, TimelinePhase
-from datetime import datetime, date
+"""
+Module: timeline.py
+Description: Election timeline routes for Chunav Mitra.
+Author: Chunav Mitra Team
+Version: 1.0.0
+"""
 
+from __future__ import annotations
+
+from datetime import date, datetime
+
+from fastapi import APIRouter, HTTPException
+
+from app.models.schemas import TimelinePhase, TimelineResponse
+from app.utils.cache import cache
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["timeline"])
 
-# ── Update these dates with real ECI election schedule ─────────────────────
 PHASES: list[TimelinePhase] = [
-    TimelinePhase(phase=1, name="Notification — Shaadi ka Card",   date="2024-03-20",
-                  description="Official election announcement. ECI ne shaadi ka card bheja!"),
-    TimelinePhase(phase=2, name="Nomination — Rishta Pakka",       date="2024-03-27",
-                  description="Candidates file nominations. Dulha-Dulhan decide ho gaye."),
-    TimelinePhase(phase=3, name="Scrutiny — Rishta Check",         date="2024-03-30",
-                  description="Nomination papers checked. Background verification ho rahi hai."),
-    TimelinePhase(phase=4, name="Withdrawal — Last Chance",        date="2024-04-02",
-                  description="Last date to withdraw. Ab peeche nahi hat sakte!"),
-    TimelinePhase(phase=5, name="Campaigning — Baraat",            date="2024-04-19",
-                  description="Parties campaign. Baraat nikal rahi hai — shor machao!"),
-    TimelinePhase(phase=6, name="Voting Day — Mangalphera",        date="2024-04-19",
-                  description="THE day! Booth jao, vote do. Desh ki shaadi complete karo!"),
-    TimelinePhase(phase=7, name="Counting — Saat Phere Result",    date="2024-06-04",
-                  description="Votes counted. Winner announce — Vidaai ho gayi!"),
+    TimelinePhase(
+        phase=1,
+        name="West Bengal Assembly Term Ends",
+        date="2026-05-07",
+        description="ECI ke official 2025-2026 assembly note ke hisaab se West Bengal Assembly ka term 7 May 2026 ko end hota hai.",
+    ),
+    TimelinePhase(
+        phase=2,
+        name="Tamil Nadu Assembly Term Ends",
+        date="2026-05-10",
+        description="Tamil Nadu Assembly ka current term 10 May 2026 tak hai, isliye election process is date se pehle complete hona chahiye.",
+    ),
+    TimelinePhase(
+        phase=3,
+        name="Assam Assembly Term Ends",
+        date="2026-05-20",
+        description="Assam Assembly ka term 20 May 2026 ko expire hota hai; official poll schedule ECI is deadline se pehle notify karta hai.",
+    ),
+    TimelinePhase(
+        phase=4,
+        name="Kerala Assembly Term Ends",
+        date="2026-05-23",
+        description="Kerala Assembly ka term 23 May 2026 tak valid hai. Naye House ka chunav is date se pehle complete hona zaroori hota hai.",
+    ),
+    TimelinePhase(
+        phase=5,
+        name="Puducherry Assembly Term Ends",
+        date="2026-06-15",
+        description="Puducherry Assembly ka term 15 June 2026 tak hai. ECI ki official process is deadline ke andar complete hoti hai.",
+    ),
 ]
 
+
 @router.get("/timeline", response_model=TimelineResponse)
-async def get_timeline():
-    today = date.today()
-    current_phase = "Election complete — agli shaadi ka intezaar!"
-    next_deadline = "Check ECI website for next election dates"
-    days_remaining = 0
+async def get_timeline() -> TimelineResponse:
+    """Return the current and upcoming election milestones."""
+    try:
+        cache_key = cache.make_key("timeline")
+        cached_response = cache.get(cache_key)
+        if cached_response:
+            return cached_response
 
-    for phase in PHASES:
-        phase_date = datetime.strptime(phase.date, "%Y-%m-%d").date()
-        if phase_date >= today:
-            current_phase = phase.name
-            next_deadline = phase.date
-            days_remaining = (phase_date - today).days
-            break
+        today = date.today()
+        current_phase = "Official election schedule awaited from ECI"
+        next_deadline = "Awaiting ECI schedule announcement"
+        days_remaining = 0
 
-    return TimelineResponse(
-        current_phase=current_phase,
-        phases=PHASES,
-        next_deadline=next_deadline,
-        days_remaining=days_remaining,
-    )
+        for phase in PHASES:
+            phase_date = datetime.strptime(phase.date, "%Y-%m-%d").date()
+            if phase_date >= today:
+                current_phase = phase.name
+                next_deadline = phase.date
+                days_remaining = (phase_date - today).days
+                break
+
+        response = TimelineResponse(
+            current_phase=current_phase,
+            phases=PHASES,
+            next_deadline=next_deadline,
+            days_remaining=days_remaining,
+        )
+        cache.set(cache_key, response, ttl_seconds=3600)
+        return response
+    except Exception as error:
+        logger.error("Error in timeline endpoint: %s", error)
+        raise HTTPException(
+            status_code=500,
+            detail="Kuch technical issue aa gaya. Please try again.",
+        ) from error

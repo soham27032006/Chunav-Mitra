@@ -6,16 +6,20 @@ import { CursorGlow } from "./CursorGlow";
 export function Layout({
   children,
   hideFooter = false,
+  disableAmbientEffects = false,
 }: {
   children: React.ReactNode;
   hideFooter?: boolean;
+  disableAmbientEffects?: boolean;
 }) {
   return (
     <div className="relative min-h-screen rangoli-bg">
-      <Petals count={14} />
-      <CursorGlow />
+      {!disableAmbientEffects && <Petals count={14} />}
+      {!disableAmbientEffects && <CursorGlow />}
       <Header />
-      <main className="relative z-10">{children}</main>
+      <main id="main-content" role="main" tabIndex={-1} className="relative z-10">
+        {children}
+      </main>
       {!hideFooter && <Footer />}
     </div>
   );

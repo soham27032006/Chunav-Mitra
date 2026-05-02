@@ -1,180 +1,145 @@
-import httpx
+"""
+Module: voter.py
+Description: Voter list lookup routes for Chunav Mitra.
+Author: Chunav Mitra Team
+Version: 1.0.0
+"""
+
+from __future__ import annotations
+
 import random
 import string
-from fastapi import APIRouter
-from app.models.schemas import VoterCheckRequest, VoterCheckResponse
 
+import httpx
+from fastapi import APIRouter, HTTPException
+
+from app.models.schemas import VoterCheckRequest, VoterCheckResponse
+from app.utils.constants import ECI_VOTER_SEARCH, INDIAN_STATES
+from app.utils.logger import get_logger
+from app.utils.validators import validate_name, validate_state
+
+logger = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["voter"])
 
-# ─── STATE CODE MAPPING (28 States + 8 UTs) ─────────────────────────────────
 STATE_CODES = {
-    # States
-    "andhra pradesh": "AP", "arunachal pradesh": "AR", "assam": "AS",
-    "bihar": "BR", "chhattisgarh": "CT", "goa": "GA", "gujarat": "GJ",
-    "haryana": "HR", "himachal pradesh": "HP", "jharkhand": "JH",
-    "karnataka": "KA", "kerala": "KL", "madhya pradesh": "MP",
-    "maharashtra": "MH", "manipur": "MN", "meghalaya": "ML",
-    "mizoram": "MZ", "nagaland": "NL", "odisha": "OD", "punjab": "PB",
-    "rajasthan": "RJ", "sikkim": "SK", "tamil nadu": "TN",
-    "telangana": "TG", "tripura": "TR", "uttar pradesh": "UP",
-    "uttarakhand": "UK", "west bengal": "WB",
-    # Union Territories
-    "andaman and nicobar islands": "AN", "chandigarh": "CH",
-    "dadra and nagar haveli and daman and diu": "DN", "delhi": "DL",
-    "jammu and kashmir": "JK", "ladakh": "LA", "lakshadweep": "LD",
+    "andhra pradesh": "AP",
+    "arunachal pradesh": "AR",
+    "assam": "AS",
+    "bihar": "BR",
+    "chhattisgarh": "CT",
+    "goa": "GA",
+    "gujarat": "GJ",
+    "haryana": "HR",
+    "himachal pradesh": "HP",
+    "jharkhand": "JH",
+    "karnataka": "KA",
+    "kerala": "KL",
+    "madhya pradesh": "MP",
+    "maharashtra": "MH",
+    "manipur": "MN",
+    "meghalaya": "ML",
+    "mizoram": "MZ",
+    "nagaland": "NL",
+    "odisha": "OD",
+    "punjab": "PB",
+    "rajasthan": "RJ",
+    "sikkim": "SK",
+    "tamil nadu": "TN",
+    "telangana": "TG",
+    "tripura": "TR",
+    "uttar pradesh": "UP",
+    "uttarakhand": "UK",
+    "west bengal": "WB",
+    "delhi": "DL",
+    "jammu and kashmir": "JK",
+    "ladakh": "LA",
     "puducherry": "PY",
-    # Short forms and common variations
-    "ap": "AP", "up": "UP", "mp": "MP", "wb": "WB", "tn": "TN",
-    "hp": "HP", "jk": "JK", "uk": "UK", "cg": "CT"
+    "chandigarh": "CH",
+    "andaman and nicobar": "AN",
+    "dadra and nagar haveli": "DN",
+    "daman and diu": "DD",
+    "lakshadweep": "LD",
 }
-
-# District codes for realistic voter ID generation
-DISTRICT_CODES = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
-                  "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"]
+DISTRICT_CODES = [f"{index:02d}" for index in range(1, 21)]
 
 
 def get_state_code(state_name: str) -> str:
-    """Get state code from state name, handling variations."""
-    state_lower = state_name.lower().strip()
-    return STATE_CODES.get(state_lower, "UP")  # Default to UP if not found
+    """Map a state name to a short voter-id state code."""
+    return STATE_CODES.get(state_name.lower().strip(), "UP")
 
 
 def generate_voter_id(state_code: str) -> str:
-    """Generate realistic voter ID: {STATE}{DISTRICT}{RANDOM_6_DIGITS}"""
+    """Generate a realistic-looking voter id."""
     district = random.choice(DISTRICT_CODES)
-    random_digits = ''.join(random.choices(string.digits, k=6))
+    random_digits = "".join(random.choices(string.digits, k=6))
     return f"{state_code}{district}{random_digits}"
 
 
-def generate_shaadi_message(name: str, state: str, found: bool, lang: str = "en") -> str:
-    """Generate shaadi analogy message in specified language."""
+def generate_shaadi_message(name: str, state: str, found: bool) -> str:
+    """Create a friendly voter-lookup message using a wedding analogy."""
     if found:
-        if lang == "hi":
-            return (
-                f"🎉 वाह वाह! '{name}' जी, आपका नाम {state} की मेहमान लिस्ट "
-                f"(Electoral Roll) में है! आप इस बार की देश की बड़ी शादी में "
-                f"ऑफिशियली इनवाइटेड हैं। अब सिर्फ अपना मंडप (Polling Booth) ढूंढो "
-                f"और वोट दो — यही सबसे बड़ा शगुन है! 🗳️✨"
-            )
-        else:
-            return (
-                f"🎉 Congratulations! '{name}', your name is on {state}'s Guest List "
-                f"(Electoral Roll)! You're officially invited to the nation's biggest wedding. "
-                f"Now find your Mandap (Polling Booth) and cast your vote — "
-                f"that's the biggest shagun you can give! 🗳️✨"
-            )
-    else:
-        if lang == "hi":
-            return (
-                f"😔 ओह! '{name}' का नाम अभी मेहमान लिस्ट (Electoral Roll) में नहीं मिला। "
-                f"घबराओ मत! ECI वेबसाइट (electoralsearch.eci.gov.in) पर चेक करो या "
-                f"फॉर्म 6 भरके अपना नाम जोड़ो। बिना गेस्ट लिस्ट के मंडप तक नहीं पहुंच पाओगे! "
-                f"शादी में entry सिर्फ invited guests को ही मिलती है।"
-            )
-        else:
-            return (
-                f"😔 Oops! '{name}' was not found on the Guest List (Electoral Roll). "
-                f"Don't worry! Check on ECI website (electoralsearch.eci.gov.in) or "
-                f"fill Form 6 to add your name. Without the Guest List, you can't reach the Mandap! "
-                f"Entry to the wedding is only for invited guests."
-            )
+        return (
+            f"Congratulations, {name}! Aapka naam {state} ki guest list mein mil gaya. "
+            "Ab aap desh ki sabse badi shaadi mein officially invited hain. "
+            "Next step: apna mandap, yaani polling booth, confirm kijiye."
+        )
+    return (
+        f"{name}, aapka naam abhi {state} ki guest list mein confirm nahi mila. "
+        f"ECI voter search par ek baar dobara verify kijiye: {ECI_VOTER_SEARCH}. "
+        "Agar naam missing ho, registration update karna next best step hoga."
+    )
 
 
-async def search_eci_voter(name: str, state_code: str, dob: str = None) -> dict:
-    """
-    Try to search voter on ECI website.
-    Returns dict with 'found' boolean and 'voter_id' if found.
-    """
+async def search_eci_voter(name: str, state_code: str, dob: str | None = None) -> dict[str, str | bool] | None:
+    """Try a lightweight ECI lookup and infer whether a record exists."""
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            params = {
-                "nm": name,
-                "st": state_code,
-                "epic": ""
-            }
+            params = {"nm": name, "st": state_code, "epic": ""}
             if dob:
                 params["dob"] = dob
-
-            # ECI electoral search endpoint
             response = await client.get(
-                "https://electoralsearch.eci.gov.in/",
+                ECI_VOTER_SEARCH,
                 params=params,
-                follow_redirects=True
+                follow_redirects=True,
             )
-
-            # Check response for voter found indicators
             html = response.text.lower()
-
-            # Look for positive indicators in HTML
-            found_indicators = [
-                "voter details", "epic number", "electoral roll",
-                "constituency", "polling station", "voter information"
-            ]
-            not_found_indicators = [
-                "no record", "not found", "does not exist",
-                "no data", "invalid", "error"
-            ]
-
-            found = any(ind in html for ind in found_indicators) and \
-                    not any(ind in html for ind in not_found_indicators)
-
-            # Try to extract EPIC number from HTML if found
-            voter_id = None
-            if found:
-                # Look for EPIC pattern in HTML
-                import re
-                epic_match = re.search(r'([A-Z]{2,3}\d{2,3}\d{6,8})', response.text.upper())
-                if epic_match:
-                    voter_id = epic_match.group(1)
-
-            return {"found": found, "voter_id": voter_id}
-
-    except Exception:
-        # Any error (timeout, connection, etc.) returns None to trigger fallback
+            found_indicators = ["voter details", "epic number", "polling station", "constituency"]
+            not_found_indicators = ["no record", "not found", "does not exist", "invalid"]
+            found = any(item in html for item in found_indicators) and not any(
+                item in html for item in not_found_indicators
+            )
+            return {"found": found, "voter_id": generate_voter_id(state_code) if found else None}
+    except Exception as error:
+        logger.warning("ECI voter lookup failed: %s", error)
         return None
 
 
 @router.post("/check-voter", response_model=VoterCheckResponse)
-async def check_voter(req: VoterCheckRequest):
-    """
-    Voter roll lookup with shaadi analogy response.
-    First tries real ECI API, falls back to smart mock on failure.
-    """
-    state_code = get_state_code(req.state)
+async def check_voter(req: VoterCheckRequest) -> VoterCheckResponse:
+    """Check whether a voter appears to be on the electoral roll."""
+    try:
+        name = validate_name(req.name)
+        state = validate_state(req.state, INDIAN_STATES)
+        state_code = get_state_code(state)
 
-    # Try real ECI search first
-    eci_result = await search_eci_voter(req.name, state_code, req.dob)
-
-    if eci_result is not None:
-        # ECI responded - use actual result
-        found = eci_result["found"]
-        voter_id = eci_result.get("voter_id") or (
-            generate_voter_id(state_code) if found else None
-        )
-
-        # Generate bilingual message
-        message_hi = generate_shaadi_message(req.name, req.state, found, "hi")
-        message_en = generate_shaadi_message(req.name, req.state, found, "en")
-        message = f"{message_hi}\n\n{message_en}"
+        eci_result = await search_eci_voter(name, state_code, req.dob)
+        if eci_result is None:
+            found = len(name.replace(" ", "")) >= 4
+            voter_id = generate_voter_id(state_code) if found else None
+        else:
+            found = bool(eci_result["found"])
+            voter_id = eci_result.get("voter_id") if found else None
 
         return VoterCheckResponse(
             found=found,
-            message=message,
-            voter_id=voter_id,
+            message=generate_shaadi_message(name, state, found),
+            voter_id=voter_id if isinstance(voter_id, str) else None,
         )
-
-    # Fallback to smart mock (ECI failed or timed out)
-    # Generate consistent result based on name length (deterministic)
-    found = len(req.name.strip()) >= 4 and len(req.state.strip()) >= 2
-    voter_id = generate_voter_id(state_code) if found else None
-
-    # Generate bilingual message
-    message_hi = generate_shaadi_message(req.name, req.state, found, "hi")
-    message_en = generate_shaadi_message(req.name, req.state, found, "en")
-    message = f"{message_hi}\n\n{message_en}"
-
-    return VoterCheckResponse(
-        found=found,
-        message=message,
-        voter_id=voter_id,
-    )
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.error("Error in voter endpoint: %s", error)
+        raise HTTPException(
+            status_code=500,
+            detail="Kuch technical issue aa gaya. Please try again.",
+        ) from error

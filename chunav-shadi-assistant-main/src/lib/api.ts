@@ -28,6 +28,8 @@ export interface BoothResponse {
   distance: string;
   maps_link: string;
   message: string;
+  lat?: number;
+  lng?: number;
 }
 
 export interface TimelinePhase {
@@ -61,17 +63,90 @@ export interface StatsResponse {
   most_asked_intent: string;
 }
 
+export interface TranscribeResponse {
+  text: string;
+  lang: Lang;
+}
+
+export interface TranslateResponse {
+  texts: string[];
+  target_lang: Lang;
+}
+
 const BASE_URL =
   (import.meta as unknown as { env: Record<string, string | undefined> }).env
     ?.VITE_API_BASE_URL || "http://localhost:8000";
 
-async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+const pendingRequests = new Map<string, Promise<unknown>>();
+
+function makeRequestKey(path: string, init?: RequestInit): string {
+  return JSON.stringify({
+    path,
+    method: init?.method ?? "GET",
+    body: typeof init?.body === "string" ? init.body : null,
   });
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-  return res.json() as Promise<T>;
+}
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeout = 10000,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeout);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries = 2,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await fetchWithTimeout(url, options);
+    } catch (error) {
+      lastError = error;
+      if (attempt === retries) {
+        break;
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Network request failed");
+}
+
+async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const requestKey = makeRequestKey(path, init);
+  const existing = pendingRequests.get(requestKey);
+  if (existing) {
+    return existing as Promise<T>;
+  }
+
+  const requestPromise = (async () => {
+    const response = await fetchWithRetry(`${BASE_URL}${path}`, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    });
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+    return (await response.json()) as T;
+  })();
+
+  pendingRequests.set(requestKey, requestPromise);
+  try {
+    return await requestPromise;
+  } finally {
+    pendingRequests.delete(requestKey);
+  }
 }
 
 export const api = {
@@ -81,9 +156,10 @@ export const api = {
       body: JSON.stringify({ query, session_id, lang }),
     }),
 
-  streamAskUrl: (query: string, session_id?: string) => {
+  streamAskUrl: (query: string, session_id?: string, lang?: Lang) => {
     const params = new URLSearchParams({ query });
     if (session_id) params.set("session_id", session_id);
+    if (lang) params.set("lang", lang);
     return `${BASE_URL}/api/ask/stream?${params.toString()}`;
   },
 
@@ -105,6 +181,26 @@ export const api = {
     jsonFetch<ExplainResponse>("/api/explain", {
       method: "POST",
       body: JSON.stringify({ topic, lang }),
+    }),
+
+  transcribe: async (audio: Blob, lang: Lang) => {
+    const form = new FormData();
+    form.append("audio", audio, "voice-input.webm");
+    form.append("lang", lang);
+    const response = await fetchWithRetry(`${BASE_URL}/api/transcribe`, {
+      method: "POST",
+      body: form,
+    });
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+    return (await response.json()) as TranscribeResponse;
+  },
+
+  translateBatch: (texts: string[], target_lang: Lang) =>
+    jsonFetch<TranslateResponse>("/api/translate", {
+      method: "POST",
+      body: JSON.stringify({ texts, target_lang }),
     }),
 
   stats: () => jsonFetch<StatsResponse>("/api/stats"),

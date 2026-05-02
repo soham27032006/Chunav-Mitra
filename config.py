@@ -3,6 +3,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     gemini_api_key: str
+    grok_api_key: str = ""
     google_maps_api_key: str
     google_translate_api_key: str
     firebase_project_id: str

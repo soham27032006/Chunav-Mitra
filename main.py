@@ -1,25 +1,63 @@
+"""
+Module: main.py
+Description: FastAPI application entrypoint for the Chunav Mitra backend.
+Author: Chunav Mitra Team
+Version: 1.0.0
+"""
+
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+import json
+import time
 from typing import Optional
-from fastapi import FastAPI, Query
+
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from starlette.middleware.gzip import GZipMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+
 from app.config import get_settings
-from app.routes import ask, voter, booth, timeline, explain, stats
 from app.middleware.rate_limiter import RateLimitMiddleware
-from app.services.gemini_service import ask_gemini_stream
-from app.services.firebase_service import get_history, create_session
+from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.routes import ask, booth, explain, stats, timeline, transcribe, translate, voter
+from app.routes.ask import build_local_intent_response
+from app.services import gemini_service
+from app.services.firebase_service import create_session, get_history, log_query, save_message
 from app.services.translate_service import detect_language, translate_to_english, translate_to_hindi
+from app.utils.constants import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES
+from app.utils.logger import get_logger
+from app.utils.validators import validate_language, validate_query
 
 settings = get_settings()
+logger = get_logger(__name__)
+
+async def validate_config() -> None:
+    """Validate startup configuration and log environment details."""
+    current_settings = get_settings()
+    if not current_settings.gemini_api_key:
+        logger.warning("GEMINI_API_KEY not set!")
+    logger.info("Chunav Mitra API started successfully!")
+    logger.info("Environment: %s", current_settings.app_env)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Manage application startup and shutdown hooks."""
+    await validate_config()
+    yield
+
 
 app = FastAPI(
     title="Chunav Mitra API",
-    description="Election Assistant with Desi Shaadi Analogies — Google Prompt Wars 2026",
+    description="Election Assistant with Desi Shaadi Analogies for Google Prompt Wars 2026.",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.origins_list,
@@ -27,20 +65,35 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Add rate limiting middleware
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "*"])
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RateLimitMiddleware)
 
-# Register routers
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    """Attach processing time header to every response."""
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(round(process_time * 1000, 2))
+    return response
+
+
 app.include_router(ask.router)
 app.include_router(voter.router)
 app.include_router(booth.router)
 app.include_router(timeline.router)
 app.include_router(explain.router)
 app.include_router(stats.router)
+app.include_router(transcribe.router)
+app.include_router(translate.router)
+
 
 @app.get("/")
-async def root():
+async def root() -> dict[str, object]:
+    """Return API metadata and important endpoints."""
     return {
         "name": "Chunav Mitra",
         "tagline": "Aap desh ki sabse badi shaadi ke sabse zaroori guest hain!",
@@ -51,101 +104,95 @@ async def root():
             "booth": "POST /api/find-booth",
             "timeline": "GET /api/timeline",
             "explain": "POST /api/explain",
+            "transcribe": "POST /api/transcribe",
+            "translate": "POST /api/translate",
             "stats": "GET /api/stats",
         },
         "docs": "/docs",
     }
 
+
 @app.get("/health")
-async def health():
+async def health() -> dict[str, str]:
+    """Return a lightweight healthcheck payload."""
     return {"status": "healthy", "env": settings.app_env}
 
 
 @app.get("/api/ask/stream")
 async def ask_stream(
-    query: str = Query(..., description="User query string"),
-    session_id: Optional[str] = Query(None, description="Session ID for chat history"),
-    user_id: Optional[str] = Query(None, description="User ID")
+    query: str = Query(..., description="User query string."),
+    session_id: Optional[str] = Query(None, description="Session id for chat history."),
+    user_id: Optional[str] = Query(None, description="Optional user id."),
+    lang: Optional[str] = Query(None, description="Preferred response language."),
 ):
-    """
-    Streaming chat endpoint that returns Gemini response as a stream.
-    Useful for real-time chat experiences.
-    """
-    from app.services.firebase_service import save_message, log_query
-    from app.services.gemini_service import classify_intent
+    """Stream a Gemini response over Server-Sent Events."""
+    try:
+        sanitized_query = validate_query(query)
+        preferred_lang = validate_language(lang) if lang else detect_language(sanitized_query)
+        session = session_id or create_session()
+        normalized_query = (
+            translate_to_english(sanitized_query) if preferred_lang == "hi" else sanitized_query
+        )
+        history = get_history(session) if session_id else []
+        intent_result = gemini_service.classify_intent(normalized_query)
+        intent = str(intent_result["intent"])
 
-    # Create session if needed
-    sid = session_id or create_session()
+        async def generate_stream():
+            full_response: list[str] = []
+            try:
+                local_response = build_local_intent_response(intent, normalized_query, preferred_lang)
+                if local_response:
+                    full_response.append(local_response)
+                    yield f"data: {json.dumps({'chunk': local_response, 'session_id': session, 'done': False, 'intent': intent})}\n\n"
+                else:
+                    async for chunk in gemini_service.ask_gemini_stream(normalized_query, history):
+                        full_response.append(chunk)
+                        yield f"data: {json.dumps({'chunk': chunk, 'session_id': session, 'done': False, 'intent': intent})}\n\n"
 
-    # Detect language
-    lang = detect_language(query)
+                complete_response = "".join(full_response).strip()
+                final_response = (
+                    translate_to_hindi(complete_response)
+                    if preferred_lang == "hi" and complete_response
+                    else complete_response
+                )
+                if final_response:
+                    save_message(session, "user", sanitized_query, user_id)
+                    save_message(session, "model", final_response, user_id)
+                    log_query(session, intent, preferred_lang)
 
-    # Translate to English for Gemini
-    en_query = translate_to_english(query) if lang == "hi" else query
+                yield f"data: {json.dumps({'chunk': '', 'session_id': session, 'done': True, 'intent': intent})}\n\n"
+            except Exception as error:
+                logger.error("Error in ask_stream generator: %s", error)
+                payload = {
+                    "chunk": "Kuch technical issue aa gaya. Please try again.",
+                    "session_id": session,
+                    "done": True,
+                    "intent": intent,
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
 
-    # Get chat history
-    history = get_history(sid) if session_id else []
-
-    # Classify intent
-    intent_result = classify_intent(en_query)
-    intent = intent_result["intent"]
-
-    async def generate_stream():
-        """Generate SSE streaming response with translation if needed."""
-        import json
-        full_response = []
-
-        # Stream chunks from Gemini
-        async for chunk in ask_gemini_stream(en_query, history):
-            full_response.append(chunk)
-            # Yield SSE formatted chunk
-            sse_data = json.dumps({
-                "chunk": chunk,
-                "session_id": sid,
-                "done": False,
-                "intent": intent
-            })
-            yield f"data: {sse_data}\n\n"
-
-        # Combine full response
-        complete_en_response = "".join(full_response)
-
-        # Translate if needed
-        if lang == "hi":
-            final_response = translate_to_hindi(complete_en_response)
-        else:
-            final_response = complete_en_response
-
-        # Save to Firestore
-        try:
-            save_message(sid, "user", query, user_id)
-            save_message(sid, "model", final_response, user_id)
-            log_query(sid, intent, lang)
-        except Exception:
-            pass  # Don't fail streaming if logging fails
-
-        # Yield done signal
-        done_data = json.dumps({
-            "chunk": "",
-            "session_id": sid,
-            "done": True,
-            "intent": intent
-        })
-        yield f"data: {done_data}\n\n"
-
-    return StreamingResponse(
-        generate_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-            "X-Session-ID": sid,
-            "X-Detected-Lang": lang,
-            "X-Intent": intent
-        }
-    )
+        return StreamingResponse(
+            generate_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "X-Session-ID": session,
+                "X-Detected-Lang": preferred_lang,
+                "X-Intent": intent,
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.error("Error in ask_stream endpoint: %s", error)
+        raise HTTPException(
+            status_code=500,
+            detail="Kuch technical issue aa gaya. Please try again.",
+        ) from error
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="0.0.0.0", port=settings.app_port, reload=True)

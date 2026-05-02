@@ -1,213 +1,311 @@
-import google.generativeai as genai
-import re
-from app.config import get_settings
-
-settings = get_settings()
-genai.configure(api_key=settings.gemini_api_key)
-
-# ─── THE KILLER SHAADI SYSTEM PROMPT ─────────────────────────────────────────
-SHAADI_SYSTEM_PROMPT = """
-You are "Chunav Mitra" — India's friendliest election guide who explains
-the entire election process using Desi Wedding (Shaadi) analogies.
-You speak warm Hinglish when user writes Hindi, English when they write English.
-
-══════════════════════════════════════════════
-CORE SHAADI ANALOGIES — always use these:
-══════════════════════════════════════════════
-
-1. VOTER LIST / ELECTORAL ROLL = GUEST LIST (Mehman List)
-→ "Shaadi mein entry sirf invited guests ko milti hai.
-Agar aapka naam Electoral Roll (Guest List) mein nahi,
-toh aap vote (shaadi attend) nahi kar sakte!"
-→ Action: "Apna naam check karein → 'Voter Check' button dabao"
-
-2. VOTER ID CARD = WEDDING INVITATION CARD
-→ "Invitation card ke bina gate pe rok denge.
-Voter ID = aapka official shaadi ka invite!"
-
-3. POLLING BOOTH = MANDAP
-→ "Mandap woh jagah hai jahan asli kaam hota hai.
-Aapka Polling Booth = Aapka personal Mandap!"
-→ Action: "Apna Mandap dhundho → 'Find My Booth' button"
-
-4. INDELIBLE INK = MEHNDI
-→ "Shaadi attend ki? Mehndi lagegi! Vote diya? Ink lagegi!
-Yeh proof hai ki aap desh ki sabse badi shaadi mein the."
-
-5. ELECTION COMMISSION (ECI) = WEDDING PLANNER
-→ "Poori shaadi ka management ECI karta hai —
-date, venue, guest list, rules — sab kuch!"
-
-6. MANIFESTO = SHAGUN KA MENU
-→ "Har party apna menu (vaade) dikhati hai.
-Aapko decide karna hai kiska khana (policies) sabse achha hai."
-
-7. VOTING = SHAGUN DENA
-→ "Vote aapka sabse bada shagun hai — desh ko gift!
-Aur yeh gift FREE hai, compulsory nahi — par zaroori zaroor hai!"
-
-8. EVM MACHINE = MANGALSUTRA MOMENT
-→ "EVM pe button dabana = mangalsutra pahnaana.
-Ek baar decide karo, phir pehna do!"
-
-9. CANDIDATE = DULHA/DULHAN
-→ "Aapki constituency ke liye best match choose karo —
-bilkul jaise shaadi mein rishta dekhte hain!"
-
-10. MODEL CODE OF CONDUCT = SHAADI KE RULES
-→ "Baraat mein bhi rules hote hain —
-koi hungama nahi, koi late nahi, sab shanti se!"
-
-══════════════════════════════════════════════
-BEHAVIOR RULES:
-══════════════════════════════════════════════
-1. Keep answers SHORT — 3-5 sentences max (unless user asks for detail)
-2. ALWAYS end with one action suggestion (check voter, find booth, see timeline)
-3. Use the OPENING LINE on the very first message only
-4. Never recommend any party or candidate — strictly neutral
-5. If user asks something not election-related → gently bring back to elections
-6. For VOTER CHECK queries → say "Apna naam check karo, 'Voter Check' feature use karo!"
-7. For BOOTH queries → say "Apna Mandap dhundo, 'Find My Booth' use karo!"
-8. For TIMELINE queries → share key dates with shaadi phase names
-9. If user seems confused → ask ONE simple clarifying question
-10. Always validate the user — "Bahut achha sawaal hai!"
-
-══════════════════════════════════════════════
-OPENING LINE (first message only):
-══════════════════════════════════════════════
-"Namaste! Main Chunav Mitra hoon 🗳️
-Aap desh ki sabse badi shaadi ke sabse zaroori guest hain —
-aapka vote hi sabse bada shagun hai desh ko!
-Kya jaanna chahte hain aap aaj? Voter list check karni hai,
-booth dhundna hai, ya election ka poora process samajhna hai?"
+"""
+Module: gemini_service.py
+Description: AI service for Chunav Mitra using Google Gemini API.
+Provides election guidance with Desi Wedding (Shaadi) analogies.
+Author: Chunav Mitra Team
+Version: 1.0.0
 """
 
-model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
-    system_instruction=SHAADI_SYSTEM_PROMPT
-)
+from __future__ import annotations
 
-# Keyword weights for smarter intent classification
-INTENT_KEYWORDS = {
-    "voter_check": {
-        "voter": 2.0, "name": 1.5, "list": 1.5, "roll": 2.0, "registered": 2.0,
-        "naam": 2.0, "register": 1.5, "epic": 2.5, "card": 1.0, "id": 1.5,
-        "check": 1.0, "verify": 1.0, "search": 1.0, "dhundo": 1.0, "find": 1.0
-    },
-    "booth_finder": {
-        "booth": 2.0, "mandap": 3.0, "where": 1.5, "kahan": 2.0, "polling": 2.0,
-        "station": 1.5, "center": 1.5, "location": 1.5, "place": 1.0, "address": 1.5,
-        "near": 1.0, "nearby": 1.0, "closest": 1.0, "nearest": 1.5, "find": 1.0,
-        "dhundo": 1.5, "pata": 1.0, "jaana": 1.0
-    },
-    "timeline": {
-        "date": 2.0, "when": 2.0, "timeline": 2.5, "phase": 2.0, "kab": 2.0,
-        "schedule": 2.0, "timetable": 2.0, "time": 1.5, "election day": 2.0,
-        "voting day": 2.0, "counting": 1.5, "result": 1.5, "announcement": 1.0,
-        "dates": 1.5, "kal": 1.0, "din": 1.0
-    },
-    "explain": {
-        "what": 1.5, "how": 1.5, "why": 1.5, "explain": 2.5, "samjhao": 2.5,
-        "batao": 1.5, "kya": 1.5, "kaise": 1.5, "kyun": 1.5, "meaning": 1.5,
-        "matlab": 1.5, "process": 1.5, "procedure": 1.5, "tarika": 1.5,
-        "evm": 2.5, "nota": 2.5, "manifesto": 2.5, "voter_id": 2.5,
-        "commission": 2.0, "mcc": 2.5, "counting": 2.0, "ink": 1.5, "mehndi": 1.5
-    }
-}
+import os
+from pathlib import Path
+from typing import Any
+
+from dotenv import dotenv_values, load_dotenv
+import google.generativeai as genai
+
+from app.utils.constants import MAX_HISTORY_LENGTH
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
+load_dotenv(override=True)
+
+ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+ENV_VALUES = dotenv_values(ENV_PATH)
+GEMINI_API_KEY = ENV_VALUES.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY", "")
+
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+else:
+    logger.warning("GEMINI_API_KEY is not configured. AI responses may be unavailable.")
+
+SHAADI_SYSTEM_PROMPT = """
+You are "Chunav Mitra" - India's friendliest election guide who explains
+the Indian election process using Desi Wedding (Shaadi) analogies.
+Use plain Hindi when the user prefers Hindi and plain English otherwise.
+
+Rules:
+- Keep answers short, warm, and practical.
+- Use one clear wedding analogy.
+- Stay neutral and never persuade toward any party or candidate.
+- End with one helpful action suggestion.
+"""
+
+PRIMARY_MODEL = "gemini-2.5-flash"
+FALLBACK_MODELS = ["gemini-flash-latest", "gemma-3-4b-it"]
 
 
-def classify_intent(query: str) -> dict:
+def build_model(model_name: str) -> genai.GenerativeModel:
+    """Create a configured Gemini model client.
+
+    Args:
+        model_name: Gemini model name to initialize.
+
+    Returns:
+        Configured ``GenerativeModel`` instance.
+
+    Raises:
+        ValueError: When the model name is empty.
+
+    Example:
+        >>> build_model("gemini-2.5-flash")
     """
-    Classify query intent with confidence score using weighted keyword matching.
-    Returns: {"intent": str, "confidence": float}
+    if not model_name.strip():
+        raise ValueError("model_name cannot be empty.")
+    return genai.GenerativeModel(
+        model_name=model_name,
+        system_instruction=SHAADI_SYSTEM_PROMPT,
+    )
+
+
+def classify_intent(query: str) -> dict[str, float | str]:
+    """Classify the most likely user intent from a text query.
+
+    Args:
+        query: User query text.
+
+    Returns:
+        Intent dictionary with ``intent`` and ``confidence`` keys.
+
+    Raises:
+        ValueError: When the query is invalid.
+
+    Example:
+        >>> classify_intent("Where is my polling booth?")
+        {'intent': 'booth_finder', 'confidence': 0.91}
     """
+    if not isinstance(query, str):
+        raise ValueError("Query must be a string.")
+
     q = query.lower()
-    words = re.findall(r'\b\w+\b', q)
-
-    scores = {}
-    for intent, keywords in INTENT_KEYWORDS.items():
-        score = 0.0
-        for word in words:
-            if word in keywords:
-                score += keywords[word]
-        scores[intent] = score
-
-    # Add general intent with base score
-    scores["general"] = 0.5
-
-    # Find highest scoring intent
-    max_intent = max(scores, key=scores.get)
-    max_score = scores[max_intent]
-    total_score = sum(scores.values())
-
-    # Calculate confidence as proportion of total score
-    confidence = max_score / total_score if total_score > 0 else 0.0
-
-    # If confidence is too low, default to general
-    if confidence < 0.3:
-        return {"intent": "general", "confidence": round(1.0 - confidence, 2)}
-
-    return {"intent": max_intent, "confidence": round(confidence, 2)}
+    if any(word in q for word in ["voter", "list", "roll", "register", "naam", "मतदाता"]):
+        return {"intent": "voter_check", "confidence": 0.92}
+    if any(word in q for word in ["booth", "polling", "mandap", "kahan", "where"]):
+        return {"intent": "booth_finder", "confidence": 0.91}
+    if any(word in q for word in ["timeline", "phase", "date", "when", "kab", "counting"]):
+        return {"intent": "timeline", "confidence": 0.9}
+    if any(word in q for word in ["what", "explain", "how", "kya", "batao", "evm", "nota"]):
+        return {"intent": "explain", "confidence": 0.84}
+    return {"intent": "general", "confidence": 0.7}
 
 
-def ask_gemini(query: str, chat_history: list = None) -> str:
-    """Send query to Gemini, return response string"""
+def summarize_history(history: list[dict[str, Any]]) -> str:
+    """Summarize recent chat history for long-running conversations.
+
+    Args:
+        history: Prior message history in Gemini-compatible format.
+
+    Returns:
+        Short summary string, or an empty string on failure.
+
+    Raises:
+        ValueError: When history is not a list.
+
+    Example:
+        >>> summarize_history([])
+        ''
+    """
+    if not isinstance(history, list):
+        raise ValueError("history must be a list.")
+    if not history:
+        return ""
     try:
-        if chat_history and len(chat_history) > 0:
-            chat = model.start_chat(history=chat_history)
-            response = chat.send_message(query)
-        else:
-            response = model.generate_content(query)
-        return response.text
-    except Exception as e:
-        return f"Oops! Kuch technical issue aa gaya. Please dobara try karein. ({str(e)})"
-
-
-async def ask_gemini_stream(query: str, history: list = None):
-    """
-    Stream Gemini response chunks for FastAPI StreamingResponse.
-    Yields each chunk as it arrives.
-    """
-    try:
-        if history and len(history) > 0:
-            chat = model.start_chat(history=history)
-            response = await chat.send_message_async(query, stream=True)
-        else:
-            response = await model.generate_content_async(query, stream=True)
-
-        async for chunk in response:
-            if chunk.text:
-                yield chunk.text
-    except Exception as e:
-        yield f"Oops! Kuch technical issue aa gaya. Please dobara try karein. ({str(e)})"
-
-
-def summarize_history(history: list) -> str:
-    """
-    Summarize conversation history when it exceeds 10 messages.
-    Calls Gemini to create a 2-sentence summary keeping key facts.
-    """
-    if not history or len(history) < 3:
+        summary_model = genai.GenerativeModel(PRIMARY_MODEL)
+        history_text = "\n".join(
+            f"{item['role']}: {item['parts'][0]}" for item in history[-MAX_HISTORY_LENGTH:]
+        )
+        response = summary_model.generate_content(
+            f"Summarize this conversation in 2 concise sentences:\n{history_text}"
+        )
+        return _get_response_text(response)
+    except Exception as error:
+        logger.warning("History summarization failed: %s", error)
         return ""
 
-    # Format history for summary
-    conversation = []
-    for msg in history:
-        role = msg.get("role", "user")
-        parts = msg.get("parts", [""])
-        text = parts[0] if parts else ""
-        conversation.append(f"{role}: {text}")
 
-    conversation_text = "\n".join(conversation)
+def _get_response_text(response: Any) -> str:
+    """Extract normalized text from a Gemini response object.
 
-    summary_prompt = f"""Summarize this conversation in exactly 2 sentences, keeping key facts about the user's election questions:
+    Args:
+        response: Gemini response object.
 
-{conversation_text}
+    Returns:
+        Stripped response text.
 
-Summary:"""
+    Raises:
+        ValueError: When the response object is invalid.
 
+    Example:
+        >>> _get_response_text(type('R', (), {'text': 'hello'})())
+        'hello'
+    """
+    if response is None:
+        raise ValueError("response cannot be None.")
+    text = getattr(response, "text", "") or ""
+    return text.strip()
+
+
+def _quota_like_error(error: Exception) -> bool:
+    """Detect whether an exception looks like a quota or rate-limit error.
+
+    Args:
+        error: Exception instance to inspect.
+
+    Returns:
+        ``True`` when the error looks quota-related, else ``False``.
+
+    Raises:
+        ValueError: When the error object is invalid.
+
+    Example:
+        >>> _quota_like_error(Exception("429 quota exceeded"))
+        True
+    """
+    if error is None:
+        raise ValueError("error cannot be None.")
+    message = str(error).lower()
+    return "quota exceeded" in message or "429" in message or "rate limit" in message
+
+
+def _build_gemini_history(history: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """Convert stored chat history into Gemini history payloads.
+
+    Args:
+        history: Previously stored chat history.
+
+    Returns:
+        Gemini-compatible history list.
+    """
+    if not history:
+        return []
+    return [
+        {"role": item["role"], "parts": [item["parts"][0]]}
+        for item in history[-MAX_HISTORY_LENGTH:]
+    ]
+
+
+def ask_gemini_with_fallback(query: str, history: list[dict[str, Any]] | None = None) -> str:
+    """Request a Gemini response with model failover.
+
+    Args:
+        query: User query in the target model language.
+        history: Optional prior chat history.
+
+    Returns:
+        Model response text.
+
+    Raises:
+        ValueError: When the query is invalid.
+        RuntimeError: When all model attempts fail.
+
+    Example:
+        >>> ask_gemini_with_fallback("What is a voter ID?")
+    """
+    if not isinstance(query, str) or not query.strip():
+        raise ValueError("query must be a non-empty string.")
+
+    last_error: Exception | None = None
+    gemini_history = _build_gemini_history(history)
+
+    for model_name in [PRIMARY_MODEL, *FALLBACK_MODELS]:
+        try:
+            current_model = build_model(model_name)
+            if gemini_history:
+                chat = current_model.start_chat(history=gemini_history)
+                response = chat.send_message(query)
+            else:
+                response = current_model.generate_content(query)
+            text = _get_response_text(response)
+            if text:
+                return text
+            last_error = RuntimeError(f"Empty response from model {model_name}")
+        except Exception as error:
+            last_error = error
+            logger.warning("Gemini request failed on %s: %s", model_name, error)
+            if not _quota_like_error(error):
+                break
+
+    raise RuntimeError("AI service is temporarily unavailable.") from last_error
+
+
+def ask_gemini(query: str, history: list[dict[str, Any]] | None = None) -> str:
+    """Return a non-streaming Gemini answer for a user query.
+
+    Args:
+        query: User query in the target model language.
+        history: Optional prior chat history.
+
+    Returns:
+        Final response text or a sanitized fallback message.
+
+    Raises:
+        ValueError: When the query is invalid.
+
+    Example:
+        >>> ask_gemini("How do I vote?")
+    """
     try:
-        response = model.generate_content(summary_prompt)
-        return response.text.strip()
-    except Exception:
-        return "User is asking about Indian elections and voting process."
+        return ask_gemini_with_fallback(query, history)
+    except Exception as error:
+        logger.error("ask_gemini failed: %s", error)
+        return "Kuch technical issue aa gaya. Please try again."
+
+
+async def ask_gemini_stream(
+    query: str,
+    history: list[dict[str, Any]] | None = None,
+):
+    """Stream a Gemini response chunk-by-chunk.
+
+    Args:
+        query: User query in the target model language.
+        history: Optional prior chat history.
+
+    Yields:
+        Streaming text chunks from Gemini, or one sanitized fallback chunk.
+
+    Raises:
+        ValueError: When the query is invalid.
+
+    Example:
+        >>> async for chunk in ask_gemini_stream("What is EVM?"):
+        ...     print(chunk)
+    """
+    if not isinstance(query, str) or not query.strip():
+        raise ValueError("query must be a non-empty string.")
+
+    last_error: Exception | None = None
+    gemini_history = _build_gemini_history(history)
+
+    for model_name in [PRIMARY_MODEL, *FALLBACK_MODELS]:
+        try:
+            current_model = build_model(model_name)
+            if gemini_history:
+                chat = current_model.start_chat(history=gemini_history)
+                response = await chat.send_message_async(query, stream=True)
+            else:
+                response = await current_model.generate_content_async(query, stream=True)
+            async for chunk in response:
+                text = getattr(chunk, "text", "")
+                if text:
+                    yield text
+            return
+        except Exception as error:
+            last_error = error
+            logger.warning("Gemini streaming failed on %s: %s", model_name, error)
+            if not _quota_like_error(error):
+                break
+
+    logger.error("Gemini streaming failed completely: %s", last_error)
+    yield "Kuch technical issue aa gaya. Please try again."

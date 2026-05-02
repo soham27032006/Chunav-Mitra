@@ -1,7 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { MapPin, Navigation, Loader2, ExternalLink, MapPinned } from "lucide-react";
+import "leaflet/dist/leaflet.css";
 import { Layout } from "@/components/Layout";
 import { SectionHeader } from "@/components/SectionHeader";
 import { api, type BoothResponse } from "@/lib/api";
@@ -9,19 +10,25 @@ import { useLang, t } from "@/routes/__root";
 import { toast } from "sonner";
 import { SkeletonBooth } from "@/components/SkeletonLoader";
 
+type LeafletModule = {
+  MapContainer: typeof import("react-leaflet").MapContainer;
+  TileLayer: typeof import("react-leaflet").TileLayer;
+  Marker: typeof import("react-leaflet").Marker;
+  Popup: typeof import("react-leaflet").Popup;
+};
+
 export const Route = createFileRoute("/booth")({
   component: BoothFinder,
 });
 
 function BoothFinder() {
   const { lang } = useLang();
-  const navigate = useNavigate();
   const [pincode, setPincode] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BoothResponse | null>(null);
   const [error, setError] = useState("");
+  const [leafletModule, setLeafletModule] = useState<LeafletModule | null>(null);
 
-  // Keyboard shortcut: "B" for booth finder, "Escape" to close result
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
@@ -34,6 +41,47 @@ function BoothFinder() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [result]);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadLeaflet = async () => {
+      if (typeof window === "undefined") return;
+
+      const [{ MapContainer, TileLayer, Marker, Popup }, leafletModule, markerIcon, markerShadow] =
+        await Promise.all([
+          import("react-leaflet"),
+          import("leaflet"),
+          import("leaflet/dist/images/marker-icon.png"),
+          import("leaflet/dist/images/marker-shadow.png"),
+        ]);
+
+      const L = leafletModule.default;
+      const DefaultIcon = L.icon({
+        iconUrl: markerIcon.default,
+        shadowUrl: markerShadow.default,
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+      });
+
+      L.Marker.prototype.options.icon = DefaultIcon;
+
+      if (active) {
+        setLeafletModule({ MapContainer, TileLayer, Marker, Popup });
+      }
+    };
+
+    void loadLeaflet();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const MapContainerComponent = leafletModule?.MapContainer;
+  const TileLayerComponent = leafletModule?.TileLayer;
+  const MarkerComponent = leafletModule?.Marker;
+  const PopupComponent = leafletModule?.Popup;
+
   const find = async (data: { pincode?: string; lat?: number; lng?: number }) => {
     setLoading(true);
     setError("");
@@ -45,7 +93,11 @@ function BoothFinder() {
         icon: "🏛️",
       });
     } catch {
-      setError(lang === "hi" ? "Booth dhundhne mein dikkat. Try again later." : "Problem finding booth. Try again later.");
+      setError(
+        lang === "hi"
+          ? "Booth dhundhne mein dikkat. Try again later."
+          : "Problem finding booth. Try again later.",
+      );
       toast.error(t("toast.apiError", lang), {
         icon: "⚠️",
       });
@@ -54,23 +106,65 @@ function BoothFinder() {
     }
   };
 
+  const findUsingApproxLocation = async () => {
+    try {
+      const response = await fetch("https://ipapi.co/json/");
+      if (!response.ok) throw new Error("Approximate location lookup failed");
+      const data = (await response.json()) as { latitude?: number; longitude?: number };
+      if (typeof data.latitude !== "number" || typeof data.longitude !== "number") {
+        throw new Error("Approximate coordinates unavailable");
+      }
+
+      toast.success(
+        lang === "hi"
+          ? "GPS block tha, approximate location se try kar rahe hain."
+          : "GPS was blocked, using approximate location instead.",
+        { icon: "📍" },
+      );
+
+      await find({ lat: data.latitude, lng: data.longitude });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const useGps = () => {
     if (!navigator.geolocation) {
-      setError(lang === "hi" ? "GPS aapke browser mein available nahi hai." : "GPS not available in your browser.");
+      setError(
+        lang === "hi"
+          ? "GPS aapke browser mein available nahi hai."
+          : "GPS not available in your browser.",
+      );
       toast.error(lang === "hi" ? "GPS available nahi hai" : "GPS not available", {
         icon: "📍",
       });
       return;
     }
+
     setLoading(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => find({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => {
-        setLoading(false);
-        setError(lang === "hi" ? "Location access nahi mila. Pincode use karo." : "Location access denied. Use pincode instead.");
-        toast.error(lang === "hi" ? "Location access nahi mila" : "Location access denied", {
-          icon: "📍",
-        });
+      (pos) => {
+        void find({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      },
+      async () => {
+        const worked = await findUsingApproxLocation();
+        if (!worked) {
+          setLoading(false);
+          setError(
+            lang === "hi"
+              ? "Location access nahi mila. Browser location allow karo ya pincode use karo."
+              : "Location access denied. Allow browser location or use pincode instead.",
+          );
+          toast.error(lang === "hi" ? "Location access nahi mila" : "Location access denied", {
+            icon: "📍",
+          });
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
       },
     );
   };
@@ -103,7 +197,7 @@ function BoothFinder() {
                 className="flex-1 rounded-full border border-gold/30 bg-navy/50 px-5 py-3.5 text-cream outline-none transition focus:border-gold focus:bg-navy/70"
               />
               <button
-                onClick={() => find({ pincode })}
+                onClick={() => void find({ pincode })}
                 disabled={loading || pincode.length !== 6}
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-mandap px-7 py-3.5 font-semibold text-navy shadow-gold gold-shimmer disabled:opacity-50"
               >
@@ -167,20 +261,35 @@ function BoothFinder() {
                         rel="noopener noreferrer"
                         className="mt-5 inline-flex items-center gap-2 rounded-full bg-mandap px-5 py-2.5 text-sm font-semibold text-navy shadow-gold gold-shimmer"
                       >
-                        {lang === "hi" ? "Google Maps mein dekho" : "Open in Google Maps"}
+                        {lang === "hi" ? "OpenStreetMap mein dekho" : "Open in OpenStreetMap"}
                         <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                     </div>
                     <div className="relative min-h-[300px] border-t border-gold/15 md:border-l md:border-t-0">
-                      <iframe
-                        title="Booth location"
-                        className="h-full w-full"
-                        src={`https://www.google.com/maps?q=${encodeURIComponent(
-                          result.address || result.booth_name,
-                        )}&output=embed`}
-                        loading="lazy"
-                        referrerPolicy="no-referrer-when-downgrade"
-                      />
+                      {result.lat &&
+                        result.lng &&
+                        MapContainerComponent &&
+                        TileLayerComponent &&
+                        MarkerComponent &&
+                        PopupComponent && (
+                          <MapContainerComponent
+                            center={[result.lat, result.lng]}
+                            zoom={15}
+                            className="z-10 mt-3 h-48 w-full rounded-lg"
+                            style={{ height: "200px" }}
+                          >
+                            <TileLayerComponent
+                              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                              attribution="© OpenStreetMap contributors"
+                            />
+                            <MarkerComponent position={[result.lat, result.lng]}>
+                              <PopupComponent>
+                                🏛️ {result.booth_name} <br />
+                                {result.address}
+                              </PopupComponent>
+                            </MarkerComponent>
+                          </MapContainerComponent>
+                        )}
                     </div>
                   </div>
                 </motion.div>

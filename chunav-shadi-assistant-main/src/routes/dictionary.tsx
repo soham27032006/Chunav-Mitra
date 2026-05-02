@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
-import { BookOpen, Loader2, Sparkles, Lightbulb, Target, PartyPopper } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { BookOpen, Lightbulb, Loader2, PartyPopper, Sparkles, Target } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+
 import { Layout } from "@/components/Layout";
 import { SectionHeader } from "@/components/SectionHeader";
-import { api, type ExplainResponse, type Lang } from "@/lib/api";
-import { useLang, t } from "@/routes/__root";
-import { toast } from "sonner";
 import { SkeletonDictionary } from "@/components/SkeletonLoader";
+import { api, type ExplainResponse, type Lang } from "@/lib/api";
+import { t, useLang } from "@/routes/__root";
 
 export const Route = createFileRoute("/dictionary")({
   component: Dictionary,
@@ -24,6 +25,25 @@ const TOPICS = [
   "Vote Counting",
 ];
 
+const TOPIC_DISPLAY_LABELS: Record<string, string> = {
+  EVM: "EVM",
+  NOTA: "NOTA",
+  manifesto: "Manifesto",
+  voter_id: "Voter ID",
+  booth: "Booth",
+  election_commission: "Election Commission",
+  mcc: "Model Code",
+  counting: "Vote Counting",
+  ink: "Indelible Ink",
+  candidate: "Candidate",
+  constituency: "Constituency",
+  voting_process: "Voting Process",
+};
+
+function getTopicDisplayLabel(topic: string) {
+  return TOPIC_DISPLAY_LABELS[topic] || topic.replace(/_/g, " ");
+}
+
 function Dictionary() {
   const { lang, setLang } = useLang();
   const [topic, setTopic] = useState("EVM");
@@ -31,34 +51,52 @@ function Dictionary() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ExplainResponse | null>(null);
   const [error, setError] = useState("");
+  const explainCacheRef = useRef(new Map<string, ExplainResponse>());
+  const requestIdRef = useRef(0);
 
-  // Sync with global language
   useEffect(() => {
     setSelectedLang(lang);
   }, [lang]);
 
-  const fetch = async (t: string, l: Lang) => {
+  const fetchExplanation = async (topicKey: string, language: Lang) => {
+    const cacheKey = `${topicKey}:${language}`;
+    const cached = explainCacheRef.current.get(cacheKey);
+    if (cached) {
+      setError("");
+      setData(cached);
+      return;
+    }
+
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     setLoading(true);
     setError("");
+
     try {
-      const res = await api.explain(t, l);
-      setData(res);
+      const response = await api.explain(topicKey, language);
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
+      explainCacheRef.current.set(cacheKey, response);
+      setData(response);
     } catch {
-      setError(lang === "hi" ? "Maaf kijiye, definition load nahi ho payi." : "Sorry, couldn't load definition.");
-      toast.error(t("toast.apiError", lang), {
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
+      setError(
+        language === "hi"
+          ? "Maaf kijiye, definition load nahi ho payi."
+          : "Sorry, couldn't load definition.",
+      );
+      toast.error(t("toast.apiError", language), {
         icon: "⚠️",
       });
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleLang = () => {
-    const newLang = selectedLang === "hi" ? "en" : "hi";
-    setSelectedLang(newLang);
-    setLang(newLang);
-    if (data) {
-      fetch(topic, newLang);
+      if (requestIdRef.current === requestId) {
+        setLoading(false);
+      }
     }
   };
 
@@ -72,46 +110,62 @@ function Dictionary() {
       <Layout hideFooter>
         <div className="mx-auto max-w-5xl px-4 py-10">
           <SectionHeader
-            eyebrow={lang === "hi" ? "Shaadi Wali Dictionary" : "Shaadi Wali Dictionary"}
-            title={t("dictionary.title", lang)}
-            subtitle={t("dictionary.subtitle", lang)}
+            eyebrow={lang === "hi" ? "शादी वाली डिक्शनरी" : "Shaadi Wali Dictionary"}
+            title={lang === "hi" ? "चुनावी शब्द, शादी स्टाइल में" : "Election Words, Shaadi Style"}
+            subtitle={
+              lang === "hi"
+                ? "हर चुनावी शब्द को शादी वाली मिसाल के साथ समझिए। चुनिए और सीखिए।"
+                : "Every election term with a shaadi analogy. Choose and learn."
+            }
           />
 
           <div className="mb-6 flex flex-wrap items-center gap-3">
             <select
               value={topic}
-              onChange={(e) => setTopic(e.target.value)}
+              onChange={(event) => setTopic(event.target.value)}
               className="flex-1 rounded-full border border-gold/30 bg-navy/50 px-5 py-3.5 text-cream outline-none focus:border-gold"
             >
-              {TOPICS.map((t) => (
-                <option key={t} value={t} className="bg-navy">
-                  {t}
+              {TOPICS.map((topicOption) => (
+                <option key={topicOption} value={topicOption} className="bg-navy">
+                  {topicOption}
                 </option>
               ))}
             </select>
+
             <div className="flex gap-1 rounded-full border border-gold/30 bg-navy/50 p-1">
-              {(["en", "hi"] as Lang[]).map((l) => (
+              {(["en", "hi"] as Lang[]).map((language) => (
                 <button
-                  key={l}
+                  key={language}
                   onClick={() => {
-                    setSelectedLang(l);
-                    setLang(l);
+                    if (loading || selectedLang === language) {
+                      return;
+                    }
+
+                    setSelectedLang(language);
+                    setLang(language);
+                    if (data) {
+                      void fetchExplanation(topic, language);
+                    }
                   }}
+                  disabled={loading}
                   className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
-                    selectedLang === l ? "bg-mandap text-navy" : "text-cream/70 hover:text-gold"
-                  }`}
+                    selectedLang === language
+                      ? "bg-mandap text-navy"
+                      : "text-cream/70 hover:text-gold"
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
                 >
-                  {l === "hi" ? "हिंदी" : "English"}
+                  {language === "hi" ? "हिंदी" : "English"}
                 </button>
               ))}
             </div>
+
             <button
-              onClick={() => fetch(topic, selectedLang)}
+              onClick={() => void fetchExplanation(topic, selectedLang)}
               disabled={loading}
               className="inline-flex items-center gap-2 rounded-full bg-mandap px-7 py-3.5 font-semibold text-navy shadow-gold gold-shimmer disabled:opacity-50"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
-              {t("dictionary.explainButton", lang)}
+              {lang === "hi" ? "समझाओ" : "Explain"}
             </button>
           </div>
 
@@ -123,11 +177,7 @@ function Dictionary() {
 
           <AnimatePresence mode="wait">
             {loading && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <SkeletonDictionary />
               </motion.div>
             )}
@@ -143,23 +193,39 @@ function Dictionary() {
               >
                 <div className="rounded-3xl glass-strong p-8 shadow-card">
                   <div className="text-[10px] uppercase tracking-widest text-gold/70">
-                    {lang === "hi" ? "Vishay" : "Topic"}
+                    {lang === "hi" ? "विषय" : "Topic"}
                   </div>
                   <h2 className="font-display text-5xl text-gradient-gold animate-shimmer-text">
-                    {data.topic}
+                    {getTopicDisplayLabel(data.topic)}
                   </h2>
                 </div>
 
-                <Card icon={Sparkles} title={t("dictionary.shaadiAnalogy", lang)} tone="from-saffron to-gold">
+                <Card
+                  icon={Sparkles}
+                  title={lang === "hi" ? "शादी वाली मिसाल" : "Shaadi Analogy"}
+                  tone="from-saffron to-gold"
+                >
                   {data.shaadi_analogy}
                 </Card>
-                <Card icon={Lightbulb} title={t("dictionary.simpleExplanation", lang)} tone="from-gold to-rose-gold">
+                <Card
+                  icon={Lightbulb}
+                  title={lang === "hi" ? "आसान समझाइश" : "Simple Explanation"}
+                  tone="from-gold to-rose-gold"
+                >
                   {data.simple_explanation}
                 </Card>
-                <Card icon={Target} title={t("dictionary.actionStep", lang)} tone="from-deep-green to-gold">
+                <Card
+                  icon={Target}
+                  title={lang === "hi" ? "अब आपको क्या करना चाहिए" : "Your Action Step"}
+                  tone="from-deep-green to-gold"
+                >
                   {data.action_step}
                 </Card>
-                <Card icon={PartyPopper} title={t("dictionary.funFact", lang)} tone="from-royal-purple to-saffron">
+                <Card
+                  icon={PartyPopper}
+                  title={lang === "hi" ? "मज़ेदार तथ्य" : "Fun Fact"}
+                  tone="from-royal-purple to-saffron"
+                >
                   {data.fun_fact}
                 </Card>
               </motion.div>
@@ -173,7 +239,7 @@ function Dictionary() {
               className="rounded-3xl border border-dashed border-gold/30 bg-navy/30 p-12 text-center text-cream/60"
             >
               <BookOpen className="mx-auto mb-3 h-10 w-10 text-gold/60" />
-              <p>{lang === "hi" ? "Ek topic chunein aur samajhne ke liye button dabayein" : "Choose a topic and click Explain to learn"}</p>
+              <p>{lang === "hi" ? "कोई विषय चुनिए और समझने के लिए बटन दबाइए" : "Choose a topic and click Explain to learn"}</p>
             </motion.div>
           )}
         </div>

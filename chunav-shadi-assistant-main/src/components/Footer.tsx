@@ -12,9 +12,7 @@ export function Footer() {
             Chunav Mitra
           </div>
           <p className="max-w-xl text-sm text-cream/60">
-            {t("hero.title1", lang) + " " + t("hero.title2", lang) + " " + t("hero.title3", lang)} Built with{" "}
-            <Heart className="inline h-3.5 w-3.5 fill-saffron text-saffron" />{" "}
-            for Indian Democracy
+            Made with <Heart className="inline h-3.5 w-3.5 fill-saffron text-saffron" /> by Soham Sahu
           </p>
           
           {/* Keyboard Shortcuts */}

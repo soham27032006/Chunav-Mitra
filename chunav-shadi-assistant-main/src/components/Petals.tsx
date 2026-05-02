@@ -11,18 +11,32 @@ interface Petal {
   hue: number;
 }
 
+function createSeededRandom(seed: number) {
+  let state = seed % 2147483647;
+  if (state <= 0) {
+    state += 2147483646;
+  }
+
+  return () => {
+    state = (state * 16807) % 2147483647;
+    return (state - 1) / 2147483646;
+  };
+}
+
 export function Petals({ count = 18 }: { count?: number }) {
   const petals = useMemo<Petal[]>(
-    () =>
-      Array.from({ length: count }).map((_, i) => ({
+    () => {
+      const random = createSeededRandom(count * 97 + 13);
+      return Array.from({ length: count }).map((_, i) => ({
         id: i,
-        left: Math.random() * 100,
-        delay: Math.random() * 10,
-        duration: 12 + Math.random() * 14,
-        size: 10 + Math.random() * 18,
-        rotate: Math.random() * 360,
-        hue: 30 + Math.random() * 30,
-      })),
+        left: random() * 100,
+        delay: random() * 10,
+        duration: 12 + random() * 14,
+        size: 10 + random() * 18,
+        rotate: random() * 360,
+        hue: 30 + random() * 30,
+      }));
+    },
     [count],
   );
 

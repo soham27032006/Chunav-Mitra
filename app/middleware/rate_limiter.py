@@ -1,123 +1,99 @@
-import time
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
+"""
+Module: rate_limiter.py
+Description: Simple in-memory rate limiting middleware for Chunav Mitra.
+Author: Chunav Mitra Team
+Version: 1.0.0
+"""
 
-# In-memory rate limiter storage: {ip: [timestamps]}
-_rate_limit_storage = {}
+from __future__ import annotations
+
+import time
+from typing import Any
+
+from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse, Response
+
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+_rate_limit_storage: dict[str, list[float]] = {}
 MAX_REQUESTS_PER_MINUTE = 30
 WINDOW_SECONDS = 60
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """
-    Simple in-memory rate limiter middleware.
-    Max 30 requests per minute per IP address.
-    Uses sliding window algorithm.
-    """
+    """Rate-limit requests using a sliding-window algorithm."""
 
-    async def dispatch(self, request: Request, call_next):
-        # Get client IP
+    async def dispatch(self, request: Request, call_next: Any) -> Response:
+        """Process a request while enforcing rate limits.
+
+        Args:
+            request: Incoming request object.
+            call_next: Downstream request handler.
+
+        Returns:
+            HTTP response or rate-limit JSON error response.
+        """
         client_ip = self._get_client_ip(request)
-
-        # Check rate limit
         is_allowed, retry_after = self._check_rate_limit(client_ip)
 
         if not is_allowed:
+            logger.warning("Rate limit exceeded for IP %s", client_ip)
             return JSONResponse(
                 status_code=429,
                 content={
                     "error": "Rate limit exceeded",
-                    "message_hi": "Arey bhai, thoda ruko! Shaadi mein bhi line lagti hai. 1 minute baad try karo.",
-                    "message_en": "Easy there! Even wedding queues need patience. Try again in 1 minute.",
-                    "retry_after": retry_after
+                    "message_hi": "Arey bhai, thoda ruk jaiye. 1 minute baad phir try kariye.",
+                    "message_en": "Please slow down and try again in about a minute.",
+                    "retry_after": retry_after,
                 },
-                headers={"Retry-After": str(retry_after)}
+                headers={"Retry-After": str(retry_after)},
             )
 
-        # Process the request
-        response = await call_next(request)
-        return response
+        return await call_next(request)
 
     def _get_client_ip(self, request: Request) -> str:
-        """Extract client IP from request headers or connection."""
-        # Check for forwarded headers (if behind proxy)
+        """Extract the client IP address from proxy headers or socket info."""
         forwarded = request.headers.get("X-Forwarded-For")
         if forwarded:
             return forwarded.split(",")[0].strip()
 
         real_ip = request.headers.get("X-Real-IP")
         if real_ip:
-            return real_ip
+            return real_ip.strip()
 
-        # Fall back to direct connection IP
-        if hasattr(request.client, 'host'):
+        if request.client and request.client.host:
             return request.client.host
-
         return "unknown"
 
     def _check_rate_limit(self, client_ip: str) -> tuple[bool, int]:
-        """
-        Check if request is within rate limit.
-        Returns: (is_allowed: bool, retry_after: int)
-        """
+        """Check whether a client is within the allowed rate limit."""
         current_time = time.time()
-
-        # Get or create timestamp list for this IP
-        if client_ip not in _rate_limit_storage:
-            _rate_limit_storage[client_ip] = []
-
-        timestamps = _rate_limit_storage[client_ip]
-
-        # Remove timestamps older than the window
+        timestamps = _rate_limit_storage.setdefault(client_ip, [])
         cutoff_time = current_time - WINDOW_SECONDS
-        _rate_limit_storage[client_ip] = [
-            ts for ts in timestamps if ts > cutoff_time
-        ]
+        _rate_limit_storage[client_ip] = [timestamp for timestamp in timestamps if timestamp > cutoff_time]
 
-        # Check if under limit
         if len(_rate_limit_storage[client_ip]) < MAX_REQUESTS_PER_MINUTE:
-            # Add current timestamp and allow
             _rate_limit_storage[client_ip].append(current_time)
             return True, 0
 
-        # Rate limit exceeded - calculate retry after
         oldest_timestamp = min(_rate_limit_storage[client_ip])
-        retry_after = int(oldest_timestamp + WINDOW_SECONDS - current_time) + 1
-        retry_after = max(retry_after, 1)  # At least 1 second
-
+        retry_after = max(int(oldest_timestamp + WINDOW_SECONDS - current_time) + 1, 1)
         return False, retry_after
 
 
-def get_rate_limit_status(client_ip: str) -> dict:
-    """
-    Helper function to check current rate limit status for an IP.
-    Returns info about remaining requests and reset time.
-    """
+def get_rate_limit_status(client_ip: str) -> dict[str, int]:
+    """Return current rate-limit status metadata for a client IP."""
     current_time = time.time()
-
-    if client_ip not in _rate_limit_storage:
-        return {
-            "limit": MAX_REQUESTS_PER_MINUTE,
-            "remaining": MAX_REQUESTS_PER_MINUTE,
-            "reset": int(current_time + WINDOW_SECONDS)
-        }
-
-    timestamps = _rate_limit_storage[client_ip]
+    timestamps = _rate_limit_storage.get(client_ip, [])
     cutoff_time = current_time - WINDOW_SECONDS
-
-    # Clean old timestamps
-    valid_timestamps = [ts for ts in timestamps if ts > cutoff_time]
-
+    valid_timestamps = [timestamp for timestamp in timestamps if timestamp > cutoff_time]
     remaining = max(0, MAX_REQUESTS_PER_MINUTE - len(valid_timestamps))
-
-    if valid_timestamps:
-        reset_time = int(min(valid_timestamps) + WINDOW_SECONDS)
-    else:
-        reset_time = int(current_time + WINDOW_SECONDS)
-
+    reset = int(min(valid_timestamps) + WINDOW_SECONDS) if valid_timestamps else int(current_time + WINDOW_SECONDS)
     return {
         "limit": MAX_REQUESTS_PER_MINUTE,
         "remaining": remaining,
-        "reset": reset_time
+        "reset": reset,
     }

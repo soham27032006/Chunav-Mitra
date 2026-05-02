@@ -1,18 +1,33 @@
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
+*.pyo
 venv/
 env/
-ENV/
+.env
 *.egg-info/
 dist/
 build/
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Environment variables
+# Firebase - NEVER push this
+firebase-service-account.json
+firebase-service-account*.json
+*.json.secret
+
+# Node
+node_modules/
+dist/
+.next/
+.nuxt/
+
+# Environment files - NEVER push
 .env
+.env.local
+.env.production
+.env.development
 
 # IDE
 .vscode/
@@ -23,9 +38,44 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Logs
 *.log
+logs/
 
-# ZIP archives
+# Testing
+.pytest_cache/
+coverage/
+
+# Local dependency/vendor artifacts in repo root
+*.dist-info/
+*.pyd
+bin/
+
+# Repo-local generated archives and caches
 *.zip
+.opencode/
+
+# Ignore everything at repo root by default, then allow real project files
+/*
+!/.gitignore
+!/.env.example
+!/README.md
+!/requirements.txt
+!/pytest.ini
+!/start.sh
+!/IMPROVEMENTS.md
+!/main.py
+!/config.py
+!/ask.py
+!/booth.py
+!/firebase_service.py
+!/gemini_service.py
+!/maps_service.py
+!/schemas.py
+!/timeline.py
+!/voter.py
+!/app/
+!/tests/
+!/chunav-shadi-assistant-main/

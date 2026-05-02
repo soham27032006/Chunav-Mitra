@@ -24,7 +24,7 @@ import { useEffect, useState } from "react";
 import { api, type StatsResponse } from "@/lib/api";
 import { SkeletonStats } from "@/components/SkeletonLoader";
 import { HowItWorks } from "@/components/HowItWorks";
-import { TechBadges } from "@/components/TechBadges";
+import { TextScrollAnimation } from "@/components/ui/text-scroll-animation";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -156,7 +156,7 @@ function Home() {
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
     >
-      <Layout>
+      <Layout disableAmbientEffects>
         {/* HERO */}
         <section className="relative overflow-hidden px-4 pb-20 pt-10 md:pt-16">
           <div className="mx-auto grid max-w-7xl items-center gap-10 md:grid-cols-2">
@@ -167,11 +167,9 @@ function Home() {
                 transition={{ delay: 0.1, duration: 0.8 }}
                 className="font-display text-5xl font-bold leading-[1.05] md:text-7xl lg:text-8xl"
               >
-                <span className="block text-cream">{t("hero.title1", lang)}</span>
                 <span className="block text-gradient-gold animate-shimmer-text">
-                  {t("hero.title2", lang)}
+                  {t("hero.title", lang)}
                 </span>
-                <span className="block text-cream/90">{t("hero.title3", lang)}</span>
               </motion.h1>
 
               <motion.p
@@ -360,8 +358,7 @@ function Home() {
       {/* HOW IT WORKS */}
       <HowItWorks />
 
-      {/* TECH BADGES */}
-      <TechBadges />
+      <TextScrollAnimation />
     </Layout>
   </motion.div>
 );
