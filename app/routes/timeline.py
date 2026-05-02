@@ -2,7 +2,7 @@
 Module: timeline.py
 Description: Election timeline routes for Chunav Mitra.
 Author: Chunav Mitra Team
-Version: 1.0.0
+Version: 2.0.0
 """
 
 from __future__ import annotations
@@ -21,33 +21,51 @@ router = APIRouter(prefix="/api", tags=["timeline"])
 PHASES: list[TimelinePhase] = [
     TimelinePhase(
         phase=1,
-        name="West Bengal Assembly Term Ends",
-        date="2026-05-07",
-        description="ECI ke official 2025-2026 assembly note ke hisaab se West Bengal Assembly ka term 7 May 2026 ko end hota hai.",
+        name="Lok Sabha Phase 1",
+        date="2024-04-19",
+        description="First phase of voting covering 102 constituencies across 21 states and UTs. The biggest phase of the election.",
     ),
     TimelinePhase(
         phase=2,
-        name="Tamil Nadu Assembly Term Ends",
-        date="2026-05-10",
-        description="Tamil Nadu Assembly ka current term 10 May 2026 tak hai, isliye election process is date se pehle complete hona chahiye.",
+        name="Lok Sabha Phase 2",
+        date="2024-04-26",
+        description="Second phase covering 89 constituencies across 13 states. Shaadi ka dusra bada function!",
     ),
     TimelinePhase(
         phase=3,
-        name="Assam Assembly Term Ends",
-        date="2026-05-20",
-        description="Assam Assembly ka term 20 May 2026 ko expire hota hai; official poll schedule ECI is deadline se pehle notify karta hai.",
+        name="Lok Sabha Phase 3",
+        date="2024-05-07",
+        description="Third phase covering 94 constituencies in 12 states. The momentum continues.",
     ),
     TimelinePhase(
         phase=4,
-        name="Kerala Assembly Term Ends",
-        date="2026-05-23",
-        description="Kerala Assembly ka term 23 May 2026 tak valid hai. Naye House ka chunav is date se pehle complete hona zaroori hota hai.",
+        name="Lok Sabha Phase 4",
+        date="2024-05-13",
+        description="Fourth phase covering 96 constituencies across 10 states. Halfway through the grand festival.",
     ),
     TimelinePhase(
         phase=5,
-        name="Puducherry Assembly Term Ends",
-        date="2026-06-15",
-        description="Puducherry Assembly ka term 15 June 2026 tak hai. ECI ki official process is deadline ke andar complete hoti hai.",
+        name="Lok Sabha Phase 5",
+        date="2024-05-20",
+        description="Fifth phase covering 49 constituencies across 8 states. Crucial battles taking place.",
+    ),
+    TimelinePhase(
+        phase=6,
+        name="Lok Sabha Phase 6",
+        date="2024-05-25",
+        description="Sixth phase covering 58 constituencies in 8 states. Reaching the final stages.",
+    ),
+    TimelinePhase(
+        phase=7,
+        name="Lok Sabha Phase 7",
+        date="2024-06-01",
+        description="Final phase covering 57 constituencies across 8 states. The last rituals before counting.",
+    ),
+    TimelinePhase(
+        phase=8,
+        name="Vote Counting Day",
+        date="2024-06-04",
+        description="Counting of votes and declaration of results. The ultimate finale of the grand Indian election wedding!",
     ),
 ]
 

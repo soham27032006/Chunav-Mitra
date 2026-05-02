@@ -3,7 +3,7 @@ Module: translate_service.py
 Description: Translation utilities for Chunav Mitra.
 Provides language detection and Google-powered translation helpers.
 Author: Chunav Mitra Team
-Version: 1.0.0
+Version: 2.0.0
 """
 
 from langdetect import detect

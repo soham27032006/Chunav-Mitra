@@ -2,12 +2,11 @@
 Module: main.py
 Description: FastAPI application entrypoint for the Chunav Mitra backend.
 Author: Chunav Mitra Team
-Version: 1.0.0
+Version: 2.0.0
 """
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 import json
 import time
 from typing import Optional
@@ -33,29 +32,12 @@ from app.utils.validators import validate_language, validate_query
 settings = get_settings()
 logger = get_logger(__name__)
 
-async def validate_config() -> None:
-    """Validate startup configuration and log environment details."""
-    current_settings = get_settings()
-    if not current_settings.gemini_api_key:
-        logger.warning("GEMINI_API_KEY not set!")
-    logger.info("Chunav Mitra API started successfully!")
-    logger.info("Environment: %s", current_settings.app_env)
-
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    """Manage application startup and shutdown hooks."""
-    await validate_config()
-    yield
-
-
 app = FastAPI(
     title="Chunav Mitra API",
     description="Election Assistant with Desi Shaadi Analogies for Google Prompt Wars 2026.",
-    version="1.0.0",
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
-    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -72,9 +54,34 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RateLimitMiddleware)
 
 
+@app.on_event("startup")
+async def startup_event() -> None:
+    """Validate configuration on application startup.
+
+    Logs the application version, environment, CORS origins, and a
+    startup confirmation message. Issues a warning if the Gemini API
+    key is missing.
+    """
+    logger.info("Starting Chunav Mitra API v2.0.0")
+    current_settings = get_settings()
+    if not current_settings.gemini_api_key:
+        logger.warning("GEMINI_API_KEY not configured!")
+    logger.info(f"Environment: {current_settings.app_env}")
+    logger.info(f"CORS origins: {current_settings.origins_list}")
+    logger.info("Chunav Mitra ready! Jai Hind! 🇮🇳")
+
+
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
-    """Attach processing time header to every response."""
+    """Attach processing time header to every response.
+
+    Args:
+        request: Incoming HTTP request.
+        call_next: Next middleware or route handler.
+
+    Returns:
+        Response with X-Process-Time header in milliseconds.
+    """
     start_time = time.time()
     response = await call_next(request)
     process_time = time.time() - start_time
@@ -94,7 +101,11 @@ app.include_router(translate.router)
 
 @app.get("/")
 async def root() -> dict[str, object]:
-    """Return API metadata and important endpoints."""
+    """Return API metadata and important endpoints.
+
+    Returns:
+        Dictionary with API name, tagline, and endpoint listing.
+    """
     return {
         "name": "Chunav Mitra",
         "tagline": "Aap desh ki sabse badi shaadi ke sabse zaroori guest hain!",
@@ -115,7 +126,11 @@ async def root() -> dict[str, object]:
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    """Return a lightweight healthcheck payload."""
+    """Return a lightweight healthcheck payload.
+
+    Returns:
+        Dictionary with status and current environment.
+    """
     return {"status": "healthy", "env": settings.app_env}
 
 
@@ -126,7 +141,20 @@ async def ask_stream(
     user_id: Optional[str] = Query(None, description="Optional user id."),
     lang: Optional[str] = Query(None, description="Preferred response language."),
 ):
-    """Stream a Gemini response over Server-Sent Events."""
+    """Stream a Gemini response over Server-Sent Events.
+
+    Args:
+        query: The user's question or message.
+        session_id: Optional existing chat session identifier.
+        user_id: Optional user identifier for tracking.
+        lang: Optional language preference ('en' or 'hi').
+
+    Returns:
+        StreamingResponse with SSE chunks containing response text.
+
+    Raises:
+        HTTPException: On validation errors (400) or server errors (500).
+    """
     try:
         sanitized_query = validate_query(query)
         preferred_lang = validate_language(lang) if lang else detect_language(sanitized_query)
@@ -139,6 +167,7 @@ async def ask_stream(
         intent = str(intent_result["intent"])
 
         async def generate_stream():
+            """Generate SSE chunks for the streaming response."""
             full_response: list[str] = []
             try:
                 local_response = build_local_intent_response(intent, normalized_query, preferred_lang)

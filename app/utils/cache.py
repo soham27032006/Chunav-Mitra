@@ -2,7 +2,7 @@
 Module: cache.py
 Description: In-memory cache utilities for Chunav Mitra API responses.
 Author: Chunav Mitra Team
-Version: 1.0.0
+Version: 2.0.0
 """
 
 from __future__ import annotations

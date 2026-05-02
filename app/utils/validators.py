@@ -2,14 +2,14 @@
 Module: validators.py
 Description: Input validation utilities for Chunav Mitra.
 Author: Chunav Mitra Team
-Version: 1.0.0
+Version: 2.0.0
 """
 
 import re
 
 from fastapi import HTTPException
 
-from app.utils.constants import INDIAN_STATES, MAX_QUERY_LENGTH, SUPPORTED_LANGUAGES
+from app.utils.constants import INDIAN_STATES, MAX_QUERY_LENGTH, SUPPORTED_LANGUAGES, SUPPORTED_TOPICS
 
 
 def validate_query(query: str) -> str:
@@ -114,6 +114,9 @@ def validate_language(lang: str | None) -> str:
 def validate_topic(topic: str) -> str:
     """Validate topic text for dictionary/explainer requests.
 
+    Checks that the topic is non-empty, within length limits, and is one
+    of the known supported election topics.
+
     Args:
         topic: Topic string from the client.
 
@@ -121,10 +124,32 @@ def validate_topic(topic: str) -> str:
         Sanitized topic string.
 
     Raises:
-        HTTPException: If the topic is empty or too long.
+        HTTPException: If the topic is empty, too long, or not a known topic.
     """
     if not topic or not topic.strip():
         raise HTTPException(status_code=400, detail="Topic cannot be empty.")
     if len(topic.strip()) > 100:
         raise HTTPException(status_code=400, detail="Topic too long.")
-    return re.sub(r"[<>{}\|\[\]\\]", "", topic).strip()
+    sanitized = re.sub(r"[<>{}\|\[\]\\]", "", topic).strip()
+    # Normalize aliases before checking
+    topic_aliases = {
+        "evm": "EVM",
+        "nota": "NOTA",
+        "manifesto": "Manifesto",
+        "voter id": "Voter ID",
+        "voter_id": "Voter ID",
+        "booth": "Booth",
+        "election commission": "Election Commission",
+        "election_commission": "Election Commission",
+        "model code": "Model Code",
+        "mcc": "Model Code",
+        "vote counting": "Vote Counting",
+        "counting": "Vote Counting",
+    }
+    normalized = topic_aliases.get(sanitized.lower(), sanitized)
+    if normalized not in SUPPORTED_TOPICS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown topic. Choose from: {SUPPORTED_TOPICS}",
+        )
+    return normalized

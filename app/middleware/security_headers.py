@@ -2,7 +2,7 @@
 Module: security_headers.py
 Description: Security headers middleware for Chunav Mitra.
 Author: Chunav Mitra Team
-Version: 1.0.0
+Version: 2.0.0
 """
 
 from collections.abc import Awaitable, Callable
@@ -34,5 +34,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = "geolocation=(self)"
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(self), microphone=(self), camera=()"
+        )
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
         return response

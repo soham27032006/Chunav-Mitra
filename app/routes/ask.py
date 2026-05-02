@@ -2,7 +2,7 @@
 Module: ask.py
 Description: Chat route handlers for Chunav Mitra.
 Author: Chunav Mitra Team
-Version: 1.0.0
+Version: 2.0.0
 """
 
 from __future__ import annotations

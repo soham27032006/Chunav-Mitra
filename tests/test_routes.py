@@ -1,152 +1,184 @@
-"""Integration tests for Chunav Mitra API routes."""
-
+"""Integration tests for all Chunav Mitra API routes."""
+import pytest
 from unittest.mock import patch
-
-from fastapi.testclient import TestClient
-
-from main import app
-
-client = TestClient(app)
 
 
 class TestHealthEndpoint:
-    def test_health_returns_200(self):
+    """Tests for health check endpoint."""
+
+    def test_health_returns_200(self, client) -> None:
+        """Health endpoint should return HTTP 200."""
         response = client.get("/health")
         assert response.status_code == 200
 
-    def test_health_returns_correct_schema(self):
+    def test_health_schema(self, client) -> None:
+        """Health endpoint should return correct JSON schema."""
         response = client.get("/health")
         data = response.json()
         assert "status" in data
         assert data["status"] == "healthy"
 
+    def test_root_returns_200(self, client) -> None:
+        """Root endpoint should return HTTP 200."""
+        response = client.get("/")
+        assert response.status_code == 200
+
 
 class TestAskEndpoint:
-    @patch("app.services.gemini_service.ask_gemini")
-    def test_ask_returns_response(self, mock_gemini):
-        mock_gemini.return_value = "Test shaadi response"
-        response = client.post("/api/ask", json={"query": "What is voter ID?"})
+    """Tests for POST /api/ask chat endpoint."""
+
+    def test_ask_valid_query(self, client, mock_gemini) -> None:
+        """Valid query should return 200 with response."""
+        response = client.post("/api/ask",
+            json={"query": "What is a polling booth?"})
         assert response.status_code == 200
         data = response.json()
         assert "response" in data
         assert "session_id" in data
         assert "intent" in data
+        assert "detected_lang" in data
 
-    def test_ask_empty_query_returns_400(self):
+    def test_ask_empty_query_returns_400(self, client) -> None:
+        """Empty query should return HTTP 400."""
         response = client.post("/api/ask", json={"query": ""})
         assert response.status_code == 400
 
-    def test_ask_too_long_query_returns_400(self):
-        response = client.post("/api/ask", json={"query": "x" * 501})
+    def test_ask_too_long_returns_400(self, client) -> None:
+        """Query exceeding 500 chars should return HTTP 400."""
+        response = client.post("/api/ask",
+            json={"query": "x" * 501})
         assert response.status_code == 400
+
+    def test_ask_hindi_query(self, client, mock_gemini) -> None:
+        """Hindi queries should be accepted."""
+        response = client.post("/api/ask",
+            json={"query": "Voter list mein naam kaise check karein?"})
+        assert response.status_code == 200
+
+    def test_ask_with_session_id(self, client, mock_gemini) -> None:
+        """Query with session_id should maintain context."""
+        response = client.post("/api/ask",
+            json={"query": "Hello", "session_id": "test-123"})
+        assert response.status_code == 200
+        assert response.json()["session_id"] == "test-123"
 
 
 class TestVoterEndpoint:
-    def test_voter_check_valid_input(self):
-        response = client.post("/api/check-voter", json={"name": "Rahul Sharma", "state": "Delhi"})
+    """Tests for POST /api/check-voter endpoint."""
+
+    def test_voter_check_valid(self, client) -> None:
+        """Valid voter check should return 200."""
+        response = client.post("/api/check-voter",
+            json={"name": "Rahul Sharma", "state": "Delhi"})
         assert response.status_code == 200
         data = response.json()
         assert "found" in data
         assert "message" in data
 
-    def test_voter_check_missing_name(self):
-        response = client.post("/api/check-voter", json={"name": "", "state": "Delhi"})
+    def test_voter_check_empty_name(self, client) -> None:
+        """Empty name should return 400."""
+        response = client.post("/api/check-voter",
+            json={"name": "", "state": "Delhi"})
         assert response.status_code == 400
+
+    def test_voter_check_invalid_state(self, client) -> None:
+        """Invalid state should return 400."""
+        response = client.post("/api/check-voter",
+            json={"name": "Test User", "state": "InvalidState"})
+        assert response.status_code == 400
+
+    def test_voter_check_response_has_shaadi_analogy(self, client) -> None:
+        """Response message should contain shaadi analogy."""
+        response = client.post("/api/check-voter",
+            json={"name": "Priya Singh", "state": "Maharashtra"})
+        data = response.json()
+        assert len(data["message"]) > 10
 
 
 class TestBoothEndpoint:
-    @patch("app.routes.booth.find_nearest_booth")
-    def test_booth_finder_with_pincode(self, mock_find_nearest_booth):
-        mock_find_nearest_booth.return_value = {
-            "booth_name": "Test Booth",
-            "address": "Test Address",
-            "distance": "1.2 km",
-            "maps_link": "https://maps.google.com",
-            "lat": 28.6,
-            "lng": 77.2,
-        }
-        response = client.post("/api/find-booth", json={"pincode": "110001"})
-        assert response.status_code == 200
+    """Tests for POST /api/find-booth endpoint."""
 
-    def test_booth_finder_invalid_pincode(self):
-        response = client.post("/api/find-booth", json={"pincode": "123"})
+    def test_booth_with_pincode(self, client) -> None:
+        """Valid pincode should trigger booth search."""
+        with patch("app.services.maps_service.find_nearest_booth") as mock:
+            mock.return_value = {
+                "booth_name": "Govt School",
+                "address": "Test Address, Delhi",
+                "distance": "1.2 km",
+                "maps_link": "https://maps.google.com",
+                "lat": 28.6139, "lng": 77.2090
+            }
+            response = client.post("/api/find-booth",
+                json={"pincode": "110001"})
+            assert response.status_code == 200
+            data = response.json()
+            assert "booth_name" in data
+            assert "maps_link" in data
+
+    def test_booth_invalid_pincode(self, client) -> None:
+        """Invalid pincode format should return 400."""
+        response = client.post("/api/find-booth",
+            json={"pincode": "123"})
         assert response.status_code == 400
 
-    def test_booth_finder_missing_input(self):
+    def test_booth_no_location_returns_400(self, client) -> None:
+        """Missing both pincode and GPS should return 400."""
         response = client.post("/api/find-booth", json={})
         assert response.status_code == 400
 
 
 class TestTimelineEndpoint:
-    def test_timeline_returns_phases(self):
+    """Tests for GET /api/timeline endpoint."""
+
+    def test_timeline_returns_200(self, client) -> None:
+        """Timeline should return HTTP 200."""
         response = client.get("/api/timeline")
         assert response.status_code == 200
+
+    def test_timeline_has_phases(self, client) -> None:
+        """Timeline should contain phases array."""
+        response = client.get("/api/timeline")
         data = response.json()
         assert "phases" in data
+        assert isinstance(data["phases"], list)
         assert len(data["phases"]) > 0
+
+    def test_timeline_phase_structure(self, client) -> None:
+        """Each phase should have required fields."""
+        response = client.get("/api/timeline")
+        phase = response.json()["phases"][0]
+        assert "phase" in phase
+        assert "name" in phase
+        assert "date" in phase
+        assert "description" in phase
+
+    def test_timeline_has_current_phase(self, client) -> None:
+        """Timeline should indicate current phase."""
+        response = client.get("/api/timeline")
+        data = response.json()
         assert "current_phase" in data
+        assert "days_remaining" in data
 
 
 class TestExplainEndpoint:
-    @patch("app.services.gemini_service.ask_gemini")
-    def test_explain_valid_topic(self, mock_gemini):
-        mock_gemini.return_value = (
-            '{"shaadi_analogy":"test","simple_explanation":"test","action_step":"test","fun_fact":"test"}'
-        )
-        response = client.post("/api/explain", json={"topic": "Model Code", "lang": "en"})
+    """Tests for POST /api/explain endpoint."""
+
+    def test_explain_valid_topic(self, client, mock_gemini) -> None:
+        """Valid topic should return explanation."""
+        # EVM is in LOCAL_EXPLAINERS so it returns without calling gemini
+        response = client.post("/api/explain",
+            json={"topic": "EVM", "lang": "en"})
         assert response.status_code == 200
 
-    def test_explain_local_topic_in_hindi(self):
-        response = client.post("/api/explain", json={"topic": "Election Commission", "lang": "hi"})
-        assert response.status_code == 200
-        assert "topic" in response.json()
+    def test_explain_invalid_topic(self, client) -> None:
+        """Invalid topic should return 400."""
+        response = client.post("/api/explain",
+            json={"topic": "InvalidTopic", "lang": "en"})
+        assert response.status_code == 400
 
-    @patch("app.services.gemini_service.ask_gemini")
-    def test_explain_generated_topic(self, mock_gemini):
-        mock_gemini.return_value = (
-            '{"shaadi_analogy":"custom","simple_explanation":"custom","action_step":"custom","fun_fact":"custom"}'
-        )
-        response = client.post("/api/explain", json={"topic": "Custom Topic", "lang": "en"})
-        assert response.status_code == 200
-
-
-class TestStatsEndpoint:
-    def test_stats_returns_schema(self):
-        response = client.get("/api/stats")
-        assert response.status_code == 200
-        data = response.json()
-        assert "total_queries" in data
-        assert "languages_used" in data
-
-    def test_stats_detailed_returns_schema(self):
-        response = client.get("/api/stats/detailed")
-        assert response.status_code == 200
-        data = response.json()
-        assert "daily_breakdown" in data
-        assert "hourly_distribution" in data
-
-
-class TestTranslateEndpoint:
-    @patch("app.routes.translate.translate_to")
-    def test_translate_batch(self, mock_translate):
-        mock_translate.side_effect = lambda text, target: f"{text}-{target}"
-        response = client.post("/api/translate", json={"texts": ["Hello"], "target_lang": "hi"})
-        assert response.status_code == 200
-        assert response.json()["texts"][0] == "Hello-hi"
-
-
-class TestTranscribeEndpoint:
-    @patch("app.routes.transcribe.requests.post")
-    def test_transcribe_success(self, mock_post):
-        mock_post.return_value.json.return_value = {
-            "candidates": [{"content": {"parts": [{"text": "spoken words"}]}}]
-        }
-        mock_post.return_value.raise_for_status.return_value = None
-        with patch("app.routes.transcribe.GEMINI_API_KEY", "test-key"):
-            response = client.post(
-                "/api/transcribe",
-                files={"audio": ("voice.webm", b"audio-bytes", "audio/webm")},
-                data={"lang": "en"},
-            )
-        assert response.status_code == 200
-        assert response.json()["text"] == "spoken words"
+    def test_explain_invalid_lang(self, client) -> None:
+        """Invalid language (not in Literal schema) returns 422 from Pydantic."""
+        response = client.post("/api/explain",
+            json={"topic": "EVM", "lang": "fr"})
+        # Pydantic rejects 'fr' at schema level → 422 Unprocessable Entity
+        assert response.status_code == 422

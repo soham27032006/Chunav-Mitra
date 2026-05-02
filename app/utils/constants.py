@@ -2,7 +2,7 @@
 Module: constants.py
 Description: Application-wide constants for Chunav Mitra.
 Author: Chunav Mitra Team
-Version: 1.0.0
+Version: 2.0.0
 """
 
 MAX_QUERY_LENGTH: int = 500

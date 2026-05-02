@@ -3,7 +3,7 @@ Module: gemini_service.py
 Description: AI service for Chunav Mitra using Google Gemini API.
 Provides election guidance with Desi Wedding (Shaadi) analogies.
 Author: Chunav Mitra Team
-Version: 1.0.0
+Version: 2.0.0
 """
 
 from __future__ import annotations
@@ -40,6 +40,19 @@ Rules:
 - Use one clear wedding analogy.
 - Stay neutral and never persuade toward any party or candidate.
 - End with one helpful action suggestion.
+
+ADDITIONAL CONTEXT:
+- India has 970 million+ registered voters
+- 543 Lok Sabha constituencies
+- Voting age: 18 years
+- ECI conducts elections: eci.gov.in
+- Voter helpline: 1950
+- Voter registration: nvsp.in
+
+ALWAYS mention official resources:
+- Voter search: electoralsearch.eci.gov.in
+- Registration: nvsp.in  
+- Helpline: 1950
 """
 
 PRIMARY_MODEL = "gemini-2.5-flash"

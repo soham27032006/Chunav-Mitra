@@ -2,7 +2,7 @@
 Module: explain.py
 Description: Dictionary and topic explanation routes for Chunav Mitra.
 Author: Chunav Mitra Team
-Version: 1.0.0
+Version: 2.0.0
 """
 
 from __future__ import annotations
@@ -281,7 +281,8 @@ async def explain_topic(req: ExplainRequest) -> ExplainResponse:
     try:
         requested_topic = validate_topic(req.topic)
         lang = validate_language(req.lang)
-        normalized_topic = TOPIC_ALIASES.get(requested_topic.lower(), requested_topic)
+        # validate_topic already resolves aliases; use directly
+        normalized_topic = requested_topic
         cache_key = cache.make_key("explain", normalized_topic, lang)
         cached_response = cache.get(cache_key)
         if cached_response:

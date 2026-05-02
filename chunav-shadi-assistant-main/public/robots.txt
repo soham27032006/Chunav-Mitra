@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://chunav-mitra-1.onrender.com/sitemap.xml

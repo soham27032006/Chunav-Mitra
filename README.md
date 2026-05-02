@@ -103,6 +103,22 @@ Built for the Google Virtual Prompt Wars 2026 competition.
 Evaluation criteria: Code Quality, Security, Testing, 
 Accessibility, Efficiency.
 
+## 🇮🇳 Problem Statement Alignment
+
+This project directly addresses the challenge of making 
+election information accessible to ALL Indian citizens:
+
+- 970M+ voters across 28 states and 8 UTs
+- 22 official languages supported via translation
+- First-time voter education through relatable analogies
+- Real-time voter registration and booth lookup
+- Powered entirely by Google AI + Firebase ecosystem
+
+Official Resources:
+- Voter search: [electoralsearch.eci.gov.in](https://electoralsearch.eci.gov.in)
+- Registration: [nvsp.in](https://nvsp.in)
+- Helpline: 1950
+
 ## 📄 License
 
 MIT License — see LICENSE file.

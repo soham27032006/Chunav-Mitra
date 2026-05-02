@@ -3,7 +3,7 @@ Module: firebase_service.py
 Description: Persistence and analytics helpers for Chunav Mitra.
 Supports Firebase-backed storage with a safe in-memory fallback.
 Author: Chunav Mitra Team
-Version: 1.0.0
+Version: 2.0.0
 """
 
 from __future__ import annotations
