@@ -156,7 +156,7 @@ function Home() {
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
     >
-      <Layout disableAmbientEffects>
+      <Layout>
         {/* HERO */}
         <section className="relative overflow-hidden px-4 pb-20 pt-10 md:pt-16">
           <div className="mx-auto grid max-w-7xl items-center gap-10 md:grid-cols-2">
