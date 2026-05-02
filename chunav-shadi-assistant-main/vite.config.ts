@@ -8,10 +8,19 @@ export default defineConfig({
     server: {
       host: "0.0.0.0",
       port,
+      allowedHosts: ["all", ".onrender.com", "localhost"],
     },
     preview: {
       host: "0.0.0.0",
       port,
+      allowedHosts: [
+        "all",
+        ".onrender.com",
+        "chunav-mitra-1.onrender.com",
+        "chunav-mitra-frontend.onrender.com",
+        "localhost",
+        "127.0.0.1",
+      ],
     },
   },
 });
