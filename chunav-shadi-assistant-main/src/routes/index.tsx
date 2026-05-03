@@ -159,8 +159,21 @@ function Home() {
       <Layout>
         {/* HERO */}
         <section className="relative overflow-hidden px-4 pb-20 pt-10 md:pt-16 hero-section">
-          <div className="mx-auto grid max-w-7xl items-center gap-10 md:grid-cols-2">
-            <div className="relative z-10">
+          <div className="mx-auto flex flex-col md:grid max-w-7xl items-center gap-4 sm:gap-6 md:gap-8 md:grid-cols-2">
+            
+            {/* Mandap visual - Moved to top on mobile */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.7 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 1, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              className="order-first md:order-last relative flex items-center justify-center w-[240px] h-[240px] sm:w-[320px] sm:h-[320px] md:w-[420px] md:h-[420px] max-w-[80vw] max-h-[80vw] mx-auto mt-4 sm:mt-6 md:mt-0"
+            >
+              <div className="scale-[0.5] sm:scale-[0.66] md:scale-100 origin-center">
+                <Mandap size={480} />
+              </div>
+            </motion.div>
+
+            <div className="relative z-10 mt-0 sm:mt-2 text-center md:text-left flex flex-col items-center md:items-start w-full">
               <motion.h1
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -208,7 +221,7 @@ function Home() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.6 }}
-                className="mt-10 flex flex-wrap items-center gap-2 sm:gap-4 justify-center sm:justify-start text-xs sm:text-sm text-cream/60"
+                className="mt-6 flex flex-wrap items-center gap-2 sm:gap-4 justify-center md:justify-start text-xs sm:text-sm text-cream/60"
               >
                 <span className="whitespace-nowrap">🪔 {t("hero.stats1", lang)}</span>
                 <span className="whitespace-nowrap">💍 {t("hero.stats2", lang)}</span>
@@ -222,7 +235,7 @@ function Home() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.8 }}
-                  className="mt-8 grid grid-cols-3 gap-3"
+                  className="mt-8 hidden sm:grid grid-cols-3 gap-3 w-full"
                 >
                   <AnimatedStat
                     value={stats.total_queries}
@@ -245,24 +258,12 @@ function Home() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="mt-8"
+                  className="mt-8 hidden sm:block w-full"
                 >
                   <SkeletonStats />
                 </motion.div>
               )}
             </div>
-
-            {/* Mandap visual */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.7 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 1, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className="relative flex items-center justify-center w-[280px] h-[280px] sm:w-[350px] sm:h-[350px] md:w-[480px] md:h-[480px] max-w-[90vw] mx-auto"
-            >
-              <div className="scale-[0.58] sm:scale-[0.72] md:scale-100 origin-center">
-                <Mandap size={480} />
-              </div>
-            </motion.div>
           </div>
         </section>
 

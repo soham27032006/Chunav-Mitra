@@ -141,7 +141,7 @@ export const translations = {
     stats2: { en: "970M+ Voters", hi: "970M+ मतदाता" },
     stats3: { en: "22 Languages", hi: "22 भाषाएँ" },
     stats4: { en: "World's Biggest Democracy", hi: "दुनिया का सबसे बड़ा लोकतंत्र" },
-    featuresTitle: { en: "5 Mandap, One Destination", hi: "5 मंडप, एक मंज़िल" },
+    featuresTitle: { en: "Mandaps, One Destination", hi: "मंडप, एक मंज़िल" },
     featuresSubtitle: { en: "Wedding Rituals", hi: "शादी की रस्में" },
     analogyTitle: { en: "Election ≈ Indian Wedding", hi: "चुनाव ≈ भारतीय शादी" },
     analogySubtitle: { en: "The Analogy", hi: "मिसाल" },

@@ -132,18 +132,18 @@ export function Header() {
         </div>
 
         {/* Mobile nav */}
-        <div className="scrollbar-gold flex gap-1 overflow-x-auto px-4 pb-2 lg:hidden">
+        <nav className="flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-hide px-2 sm:px-0 lg:hidden pb-2">
           {NAV.map((n) => (
             <Link
               key={n.to}
               to={n.to}
-              className="shrink-0 rounded-full border border-gold/20 px-3 py-1 text-xs text-cream/80"
+              className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-sm sm:text-base whitespace-nowrap border border-gold/30 hover:border-saffron transition-all duration-200 text-cream/80 min-h-[32px] min-w-auto"
               activeProps={{ className: "bg-gold/15 text-gold border-gold/50" }}
             >
               {t(n.labelKey, lang)}
             </Link>
           ))}
-        </div>
+        </nav>
       </div>
     </motion.header>
   );
