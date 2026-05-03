@@ -5,6 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --breakpoint-xs: 375px;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -85,19 +86,26 @@
 @layer base {
   * {
     border-color: var(--color-border);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
-  html,
+  html {
+    height: -webkit-fill-available;
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
   body {
     background: var(--gradient-night);
     color: var(--color-foreground);
     min-height: 100vh;
     font-feature-settings: "ss01", "cv11";
-    -webkit-font-smoothing: antialiased;
-  }
-
-  body {
     background-attachment: fixed;
+    overflow-x: hidden;
+    max-width: 100vw;
+    -webkit-overflow-scrolling: touch;
   }
 
   :focus-visible {
@@ -105,9 +113,28 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
+
+  button, a, [role="button"] {
+    min-height: 48px;
+    min-width: 48px;
+  }
 }
 
 @layer utilities {
+  .hero-section {
+    overflow: hidden;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+  }
+
+  .flower-animation, .petal, .orbit {
+    will-change: transform;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
   .sr-only {
     position: absolute;
     width: 1px;

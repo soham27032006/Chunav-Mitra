@@ -158,14 +158,14 @@ function Home() {
     >
       <Layout>
         {/* HERO */}
-        <section className="relative overflow-hidden px-4 pb-20 pt-10 md:pt-16">
+        <section className="relative overflow-hidden px-4 pb-20 pt-10 md:pt-16 hero-section">
           <div className="mx-auto grid max-w-7xl items-center gap-10 md:grid-cols-2">
             <div className="relative z-10">
               <motion.h1
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1, duration: 0.8 }}
-                className={`${lang === "hi" ? "overflow-visible font-hindi pt-4 leading-[1.32] md:pt-5 md:leading-[1.22]" : "font-display leading-[1.05]"} text-5xl font-bold md:text-7xl lg:text-8xl`}
+                className={`${lang === "hi" ? "overflow-visible font-hindi pt-4 leading-[1.32] md:pt-5 md:leading-[1.22]" : "font-display leading-[1.05]"} text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold`}
               >
                 <span className={`${lang === "hi" ? "inline-block overflow-visible px-1 pt-2" : "block"} text-gradient-gold animate-shimmer-text`}>
                   {t("hero.title", lang)}
@@ -176,7 +176,7 @@ function Home() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25 }}
-                className="mt-6 max-w-xl text-lg leading-relaxed text-cream/75"
+                className="mt-6 text-sm sm:text-base md:text-lg px-4 sm:px-0 max-w-full sm:max-w-2xl break-words [word-break:break-word] overflow-hidden leading-relaxed text-cream/75"
               >
                 {t("hero.subtitle", lang)}
               </motion.p>
@@ -185,11 +185,11 @@ function Home() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
-                className="mt-8 flex flex-wrap gap-3"
+                className="mt-8 flex flex-col xs:flex-row gap-3 w-full px-4 sm:px-0 sm:w-auto"
               >
                 <Link
                   to="/chat"
-                  className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-mandap px-7 py-3.5 font-semibold text-navy shadow-gold gold-shimmer"
+                  className="group relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-full bg-mandap w-full sm:w-auto min-h-[48px] px-6 py-3 font-semibold text-navy shadow-gold gold-shimmer touch-manipulation"
                 >
                   <MessageCircle className="h-5 w-5" />
                   {t("hero.chatButton", lang)}
@@ -197,7 +197,7 @@ function Home() {
                 </Link>
                 <Link
                   to="/voter-check"
-                  className="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-navy/40 px-7 py-3.5 font-semibold text-gold backdrop-blur-md transition-all hover:bg-gold/10"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-gold/40 bg-navy/40 w-full sm:w-auto min-h-[48px] px-6 py-3 font-semibold text-gold backdrop-blur-md transition-all hover:bg-gold/10 touch-manipulation"
                 >
                   <UserCheck className="h-5 w-5" />
                   {t("hero.checkButton", lang)}
@@ -208,12 +208,12 @@ function Home() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.6 }}
-                className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-cream/60"
+                className="mt-10 flex flex-wrap items-center gap-2 sm:gap-4 justify-center sm:justify-start text-xs sm:text-sm text-cream/60"
               >
-                <span>🪔 {t("hero.stats1", lang)}</span>
-                <span>💍 {t("hero.stats2", lang)}</span>
-                <span>🌸 {t("hero.stats3", lang)}</span>
-                <span>🎊 {t("hero.stats4", lang)}</span>
+                <span className="whitespace-nowrap">🪔 {t("hero.stats1", lang)}</span>
+                <span className="whitespace-nowrap">💍 {t("hero.stats2", lang)}</span>
+                <span className="whitespace-nowrap">🌸 {t("hero.stats3", lang)}</span>
+                <span className="whitespace-nowrap">🎊 {t("hero.stats4", lang)}</span>
               </motion.div>
 
               {/* Live Stats */}
@@ -257,9 +257,11 @@ function Home() {
               initial={{ opacity: 0, scale: 0.7 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 1, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className="relative flex items-center justify-center"
+              className="relative flex items-center justify-center w-[280px] h-[280px] sm:w-[350px] sm:h-[350px] md:w-[480px] md:h-[480px] max-w-[90vw] mx-auto"
             >
-              <Mandap size={480} />
+              <div className="scale-[0.58] sm:scale-[0.72] md:scale-100 origin-center">
+                <Mandap size={480} />
+              </div>
             </motion.div>
           </div>
         </section>
